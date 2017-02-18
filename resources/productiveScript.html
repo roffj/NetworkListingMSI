@@ -1,0 +1,205 @@
+
+	function ProductivityTableManage( divHtmlTabTag )
+	{
+		var me = this;
+
+		me.productivityAttrCharTags = divHtmlTabTag.find( 'input.productivityAttrChar[placenumber]' );		
+		me.btnProductivityAttrSaveTag = divHtmlTabTag.find( 'button.btnProductivityAttrSave' );
+		me.tabMsg_loadingTag = divHtmlTabTag.find( 'div.tabMsg_loading' );
+
+		me.orgUnitId = '[ouid]';
+		me.attributeId = 'htp1l0ZWPxB';
+
+
+		// ------------------------------
+
+		me.run = function()
+		{
+
+			// Setup the 'Save' Event
+			me.setUpEvent_ProductivityAttrSave( me.orgUnitId, me.attributeId );
+
+
+			// Retrieve the productivity attribute bits to input fields
+			me.getOrgUnitAttributeData( me.orgUnitId, me.attributeId, function( attrVal )
+			{
+				//console.log( 'Retrieved AttrVal: ' + attrVal );
+
+				me.populateProductivityAttrData( attrVal );
+			});
+		}
+
+
+		// ----------------------------------------
+
+		me.setUpEvent_ProductivityAttrSave = function( orgUnitId, attributeId )
+		{
+			me.btnProductivityAttrSaveTag.off( 'click' ).on( 'click', function()
+			{
+				// Reset/Clear
+				Util.paintClear( me.productivityAttrCharTags );
+
+
+				// Step 1. Get orgUnit data
+				me.getOrgUnitData( orgUnitId, function( orgUnitData )
+				{
+
+					// 1. Construct the Attribute Value
+					var attributeValue = me.constructProductivityAttr();		
+
+
+					// 2. Set the attribute value to the orgUnit JSON
+					me.setAttributeValOnOrgUnit( attributeId, attributeValue, orgUnitData );
+
+					
+					// 3. Update the orgUnit with Attribute Value
+					var queryURL_orgUnitUpdate = _queryURL_api + "organisationUnits/" + orgUnitId;
+
+					RESTUtil.submitPostAsyn( "PUT", orgUnitData, queryURL_orgUnitUpdate
+					, function( output ) 
+					{ 
+						Util.paintSuccess( me.productivityAttrCharTags, true );
+
+						console.log( "Successfully updated the org unit " + orgUnitId + " with attrVal " + attributeValue );
+					}
+					, function() 
+					{
+						Util.paintWarning( me.productivityAttrCharTags );
+						console.log( "Failed to update the org unit " + orgUnitId + " with attrVal " + attributeValue );
+					}
+					, function()
+					{
+						me.tabMsg_loadingTag.show();
+					}
+					, function()
+					{
+						me.tabMsg_loadingTag.hide();
+					}
+					);				
+					
+				});
+			});
+		}
+
+
+		me.getOrgUnitAttributeData = function( orgUnitId, attributeId, returnFunc )
+		{
+			var queryUrl = _queryURL_api + 'organisationUnits/' + orgUnitId + '.json?fields=attributeValues[value,attribute[id,name]]';
+
+			RESTUtil.getAsynchData( queryUrl, function( json_Data )
+			{
+				var attrVal = "";
+
+				if ( json_Data !== undefined && json_Data.attributeValues !== undefined )
+				{				
+					$.each( json_Data.attributeValues, function ( i_attrVal, item_attrVal )
+					{
+						if ( item_attrVal.attribute.id == attributeId )
+						{
+							attrVal = item_attrVal.value;
+							return false;
+						}
+					});
+				}
+				
+				returnFunc( attrVal );			
+			}
+			, function() 
+			{ 
+				alert( 'Failed to retrieve orgUnit attribute info.' ); 
+			});
+		}
+
+
+		me.populateProductivityAttrData = function( attrVal )
+		{
+			for ( var i = 0; i < attrVal.length; i++ )
+			{
+				var bitStr = attrVal.substring( i, i + 1 );
+
+				//console.log( 'bitStr: ' + bitStr );
+
+				me.productivityAttrCharTags.filter( '[placenumber="' + ( i + 1 ) + '"]' ).val( bitStr );
+			}
+		}
+
+
+		// ----------------------------------------------
+
+
+		me.getOrgUnitData = function( orgunitId, returnFunc )
+		{
+			var queryURL_orgUnitData = _queryURL_api + "organisationUnits/" + orgunitId + ".json?fields=*,attributeValues[value,attribute[id]]";
+
+			RESTUtil.getAsynchData( queryURL_orgUnitData
+			,function( orgUnitData )
+			{
+				returnFunc( orgUnitData );
+			});
+		}
+
+
+		me.setAttributeValOnOrgUnit = function( attributeId, attributeValue, orgUnitData )
+		{
+			var found = false;
+
+			if ( orgUnitData !== undefined && orgUnitData.attributeValues !== undefined )
+			{				
+				$.each( orgUnitData.attributeValues, function ( i_attrVal, item_attrVal )
+				{
+					if ( item_attrVal.attribute.id == attributeId )
+					{
+						item_attrVal.value = attributeValue;
+						found = true;
+
+						return false;
+					}
+				});
+
+
+				if ( !found )
+				{
+					// add attribute value set if not found.
+					orgUnitData.attributeValues.push( { "value": attributeValue, "attribute": { "id": attributeId } } );
+				}
+			}
+		}
+
+
+		me.constructProductivityAttr = function()
+		{
+			var highPlaceNumber = 0;
+			var attrValueStr = "";
+
+			// 1. Get largest 'placenumber'
+			me.productivityAttrCharTags.each( function()
+			{
+				var placeNumber = Number( $( this ).attr( 'placenumber' ) );	
+
+				if ( highPlaceNumber < placeNumber ) highPlaceNumber = placeNumber;
+			});
+
+
+			// 2. Construct/Join the attribute value
+			for ( var i = 0; i < highPlaceNumber; i++ )
+			{
+				var attrCharVal = 0;
+				var attrCharTag = me.productivityAttrCharTags.filter( '[placenumber="' + ( i + 1 ) + '"]' );
+
+				if ( attrCharTag.length == 1 )
+				{
+					attrCharVal = Number( attrCharTag.val() );
+				}
+
+				attrValueStr += attrCharVal.toString();
+			}
+
+			return attrValueStr;
+		}
+	}
+
+
+	var productivityTableManage = new ProductivityTableManage( $( 'div[HtmlTabId]' ) );
+	productivityTableManage.run();
+
+
