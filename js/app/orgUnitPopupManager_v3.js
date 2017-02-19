@@ -1940,8 +1940,13 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		
 		var ouJsonAddition = me.executeNetworkScript( "BeforeCreation" );
 
+		//orgUnitsJSON.testArr = [{id: '11'}, {id: '12'}];
+
 		// Merge the orgUnitsJson
-		$.extend( true, orgUnitsJSON, ouJsonAddition );
+		//$.extend( true, orgUnitsJSON, ouJsonAddition );
+		orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
+
+		//console.log( orgUnitsJSON );
 
 		RESTUtil.submitPostAsyn( "POST", orgUnitsJSON, queryURL_MetaData		
 		, function( data )
@@ -2087,7 +2092,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			var ouJsonAddition = me.executeNetworkScript( "AfterCreation", orgUnitsJSON.id );
 
-			$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
+			//$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
 
@@ -2116,7 +2122,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			// if 'openingDate' and 'closedDate', remove the time marker..
 			var ouJsonAddition = AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
 
-			$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
+			//$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			var mainOU_Data = orgUnitsJSON;
 		
@@ -2154,7 +2161,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			var orgUnitsJSON = me.generateOrgUnit_MetaData( tableTag, _mode_Edit, data );
 			
-			$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
+			//$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			RESTUtil.submitPostAsyn( "PUT", orgUnitsJSON, queryURL_MetaData
 			, function( result )
