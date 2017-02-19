@@ -39,7 +39,6 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 	me.dateEndingTimeZone = 'T23:59:00.000Z';
 
-
 	me._loadingCss = { 
 		border: 'none'
 		,padding: '15px'
@@ -693,12 +692,19 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 			//console.log( 'networkData.script: ' + script );
 
-			eval( script );				
+			_orgUnitJsonAddition = undefined;
+
+			eval( script );
+
+			// After executing, if the special variable is found, sne dit..	
+			// But we should clear it out before executing!!!
 		}
 		catch (err)
 		{
 			console.log( 'Error Caught in executeNetworkScript: ' + err.message );
 		}
+
+		return ( _orgUnitJsonAddition !== undefined ) ? _orgUnitJsonAddition : {};
 	}
 
 	// -------------------------------------------------------------------------
@@ -1931,9 +1937,11 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	this.createOrgUnitAction = function( orgUnitsJSON, dialogFormTag, tableSubMsgTag, msg )
 	{
 		var queryURL_MetaData = _queryURL_api + "organisationUnits";
-
 		
-		me.executeNetworkScript( "BeforeCreation" );
+		var ouJsonAddition = me.executeNetworkScript( "BeforeCreation" );
+
+		// Merge the orgUnitsJson
+		$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 		RESTUtil.submitPostAsyn( "POST", orgUnitsJSON, queryURL_MetaData		
 		, function( data )
@@ -2077,7 +2085,9 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		if(  me.mode == "Add" )
 		{
-			me.executeNetworkScript( "AfterCreation", orgUnitsJSON.id );
+			var ouJsonAddition = me.executeNetworkScript( "AfterCreation", orgUnitsJSON.id );
+
+			$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
 
@@ -2104,8 +2114,9 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			me.executeNetworkScript( "AfterUpdate" );
 
 			// if 'openingDate' and 'closedDate', remove the time marker..
-			AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
+			var ouJsonAddition = AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
 
+			$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			var mainOU_Data = orgUnitsJSON;
 		
@@ -2136,13 +2147,14 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 		var orgunitId = tableTag.attr( 'ouid' );
 
-		me.executeNetworkScript( "BeforeUpdate" );
+		var ouJsonAddition = me.executeNetworkScript( "BeforeUpdate" );
 
 		var queryURL_MetaData = _queryURL_api + "organisationUnits/" + orgunitId;
 		me.getOrgUnitInforAction( orgunitId, function( data )
 		{
 			var orgUnitsJSON = me.generateOrgUnit_MetaData( tableTag, _mode_Edit, data );
 			
+			$.extend( true, orgUnitsJSON, ouJsonAddition );
 
 			RESTUtil.submitPostAsyn( "PUT", orgUnitsJSON, queryURL_MetaData
 			, function( result )
