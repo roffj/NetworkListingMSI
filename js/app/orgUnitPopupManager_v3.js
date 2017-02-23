@@ -690,8 +690,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			var actionScripts = scripts[ networkTypeName + "Scripts" ];
 			var script = actionScripts[ actionType ].replace( "[ouid]", ouId );
 
-			// Reset the '_fromScriptCallFunction' before the 'script'
-			_fromScriptCallFunction = undefined;
+			// Reset the '_fromScriptCallFunc' before the 'script'
+			_fromScriptCallFunc = undefined;
 
 			// Set some variables to have it available from script
 			_countryOuId = me.orgUnitInfo.countryInfo.id;
@@ -702,8 +702,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			//orgUnitsJSON = mergeDeep( orgUnitsJSON, _orgUnitJsonAddition );
 
 			// Ajax Asynch Callback function defined in the script..
-			if ( _fromScriptCallFunction !== undefined ) {
-				_fromScriptCallFunction( function(orgUnitsJSON) {
+			if ( _fromScriptCallFunc !== undefined ) {
+				_fromScriptCallFunc( function(orgUnitsJSON) {
 					returnFunc(orgUnitsJSON);
 				});
 			}

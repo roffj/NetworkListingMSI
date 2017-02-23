@@ -9130,10 +9130,18 @@
 								<tr>
 									<td valign="top" style="background-color: #fafafa;">
 										<span style="color: #555; font-weight: bold;">Script Content</span>
+
+										<div style="margin-top: 10px; margin-bottom: 7px; text-decoration: underline;">Reserved variables</div>
+										<div style="color: #555; font-size: 11px;">
+												<div class="scriptTooltipNote" title="var orgUnitId = '[ouid]';">[ouid]</div>
+												 <div class="scriptTooltipNote" title="var tabScriptManager = new TabScriptManager( $( 'div[HtmlTabId]' ) );">[HtmlTabId]</div>
+												 <div class="scriptTooltipNote" title="console.log( '_countryOuId: ' + _countryOuId );">_countryOuId</div>
+												 <div class="scriptTooltipNote" title="_fromScriptCallFunc = function( returnFunc ){  ... returnFunc( orgUnitsJSON  );  }">_fromScriptCallFunc</div>
+										</div>
+
 									</td>
 									<td valign="top" style="background-color: #fff;">
 										<div style="padding: 5px;">
-											<div style="margin-bottom: 3px; color: #555; font-size: 11px; font-style: italic;">* Use '[ouid]'/'[HtmlTabId]' for inserting orgUnitId or HtmlTabId.  ex.) var orgUnitId = '[ouid]';  var tabScriptManager = new TabScriptManager( $( 'div[HtmlTabId]' ) );</div>
 											<textarea id="txtScriptData" cols="70" rows="18" style="background-color: #FFF;" ></textarea>
 										</div>
 

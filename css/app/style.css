@@ -1483,3 +1483,15 @@ div#selectionTree a.locked
 {
 	color: #444;
 }
+
+
+/*----------------------------------------------------------------------------*/
+/* Other Page Css                                          */
+/*----------------------------------------------------------------------------*/
+
+.scriptTooltipNote {
+	font-weight: bold;
+	color: darkslategray;
+	cursor: pointer;
+	margin: 4px 0px;
+}
