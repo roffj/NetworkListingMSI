@@ -671,8 +671,9 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		}
 	}
 
-	me.executeNetworkScript = function( actionType, orgUnitsJSON )
+	me.executeNetworkScript = function( actionType, orgUnitsJSON, returnFunc )
 	{
+		// Get Network Scripts and orgUnit Id if available
 		var networkData = me.oProviderNetwork.getSelectedNetworkData();
 		var scripts = networkData.scripts;
 
@@ -683,33 +684,42 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		else if ( me.orgUnitInfo.ouId !== undefined ) ouId = me.orgUnitInfo.ouId;
 		else ouId = "";
 
-
 		try
 		{
 			// Need to varify if this is 'Network' or 'NetworkChild'
 			var actionScripts = scripts[ networkTypeName + "Scripts" ];
 			var script = actionScripts[ actionType ].replace( "[ouid]", ouId );
 
-			// Clear the '_orgUnitJsonAddition' which could be set within 'script'
-			_orgUnitJsonAddition = undefined;
+			// Reset the '_fromScriptCallFunction' before the 'script'
+			_fromScriptCallFunction = undefined;
 
-			// Aass into script variables set
+			// Set some variables to have it available from script
+			_countryOuId = me.orgUnitInfo.countryInfo.id;
 			_orgUnitsJson = orgUnitsJSON;
 
 			eval( script );
 
-			// After executing the Script, if script populated '_orgUnitJsonAddition', merge it with orgUnitsJSON
-			if ( _orgUnitJsonAddition !== undefined ) {
-				orgUnitsJSON = mergeDeep( orgUnitsJSON, _orgUnitJsonAddition );
+			//orgUnitsJSON = mergeDeep( orgUnitsJSON, _orgUnitJsonAddition );
+
+			// Ajax Asynch Callback function defined in the script..
+			if ( _fromScriptCallFunction !== undefined ) {
+				_fromScriptCallFunction( function(orgUnitsJSON) {
+					returnFunc(orgUnitsJSON);
+				});
 			}
+			else
+			{
+				returnFunc(orgUnitsJSON);				
+			}
+
 		}
 		catch (err)
 		{
 			console.log( 'Error Caught in executeNetworkScript: ' + err.message );
-		}
 
-		// return the additional JSON that it to be merged with orgUnitJSON.
-		return orgUnitsJSON;
+			// return the additional JSON that it to be merged with orgUnitJSON.
+			returnFunc(orgUnitsJSON);							
+		}
 	}
 
 	// -------------------------------------------------------------------------
@@ -1943,124 +1953,130 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		var queryURL_MetaData = _queryURL_api + "organisationUnits";
 		
-		orgUnitsJSON = me.executeNetworkScript( "BeforeCreation", orgUnitsJSON );
+		// Need to pass the parent orgUnit code..?
 
-		RESTUtil.submitPostAsyn( "POST", orgUnitsJSON, queryURL_MetaData		
-		, function( data )
+		me.executeNetworkScript( "BeforeCreation", orgUnitsJSON, function( orgUnitsJSON ) 
 		{
 
-			if( data.response.importConflicts !== undefined )
+			RESTUtil.submitPostAsyn( "POST", orgUnitsJSON, queryURL_MetaData		
+			, function( data )
 			{
-				dialogFormTag.unblock();
-				var message = data.response.importConflicts[0].value;
-				if( message.indexOf("message=") < 0 ){
-					alert( message );
+
+				if( data.response.importConflicts !== undefined )
+				{
+					dialogFormTag.unblock();
+					var message = data.response.importConflicts[0].value;
+					if( message.indexOf("message=") < 0 ){
+						alert( message );
+					}
+					else
+					{
+						var startIdx = message.indexOf("message=") + 9;
+						var endIdx = message.substring( startIdx, message.length ).indexOf( "'" );
+						alert( message.substring( startIdx, endIdx ) );
+					}
 				}
 				else
 				{
-					var startIdx = message.indexOf("message=") + 9;
-					var endIdx = message.substring( startIdx, message.length ).indexOf( "'" );
-					alert( message.substring( startIdx, endIdx ) );
-				}
-			}
-			else
-			{
-				// Create JSON data for mapping
-				var ouId = '';
+					// Create JSON data for mapping
+					var ouId = '';
 
-				// Make it compatible for both DHIS 2.25 and 2.22
-				if ( data.response.uid !== undefined ) ouId = data.response.uid;
-				else if ( data.response.lastImported !== undefined ) ouId = data.response.lastImported;
+					// Make it compatible for both DHIS 2.25 and 2.22
+					if ( data.response.uid !== undefined ) ouId = data.response.uid;
+					else if ( data.response.lastImported !== undefined ) ouId = data.response.lastImported;
 
 
-				if ( ouId == '' )
-				{
-					// Display message
-					MsgManager.msgAreaShow( 'There are some issue with orgUnit addition - uid not returned' );
-				}
-				else
-				{
-					orgUnitsJSON.id = ouId;	
-					
-					// Save relationship
-					var networkGroupCount = 0;
-					
-					var ouGroupId = ( me.orgUnitInfo.isType_NetworkChild ) ? me.oProviderNetwork.networkData.networkChild_OUGroupID : me.oProviderNetwork.networkData.network_OUGroupID;
-					
-
-					if( ouGroupId !== undefined && ouGroupId != "" ){
-						networkGroupCount++;
+					if ( ouId == '' )
+					{
+						// Display message
+						MsgManager.msgAreaShow( 'There are some issue with orgUnit addition - uid not returned' );
 					}
-					
-					var selectedPrograms = me.selectedProgramAssignedOUTag.find("option[selectedOpt!='true']");
-					var selectedDataSets = me.selectedDatasetAssignedOUTag.find("option[selectedOpt!='true']");
-					me.dataRetrieveCount = selectedPrograms.length + selectedDataSets.length + networkGroupCount + orgUnitsJSON.organisationUnitGroups.length + 1;
-
-
-					// Show loading message..
-					tableSubMsgTag.find( 'div.loadingSubImg' ).show();
-					tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Adding Programs, DataSets, OrgUnitGroups..' );
-
-
-					// Add programs into selected OU
-					selectedPrograms.each(function(){
-						var programId = $(this).val();
-						var programName = $(this).text();
-						me.addProgramToOrgunit( ouId, programId, programName, orgUnitsJSON );
-					});
-					
-					// Add datasets into selected OU
-					selectedDataSets.each(function(){
-						var datasetId = $(this).val();
-						var datasetName = $(this).val();
-						me.addDatasetToOrgunit( ouId, datasetId, datasetName, orgUnitsJSON );
-					});
-					
-					var addedNetworkgroup = false;
-				
-					// Add org unit in selected OUG from Details tab
-					$.each( orgUnitsJSON.organisationUnitGroups, function( i, item ){
-						var groupId = item.id;
-						var groupName = item.name;
-						if( groupId == ouGroupId){
-							addedNetworkgroup = true;
-						}
-						me.addOrgunitInGroup( ouId, groupId, groupName, orgUnitsJSON );
-					});			
-				
-					// Add org unit in Network/NetworkChild OUGgroup				
-					if( ouGroupId !== undefined && ouGroupId != "" && !addedNetworkgroup ){
-						me.addOrgunitInGroup( ouId, ouGroupId, "", orgUnitsJSON );
-					}
-					else if( addedNetworkgroup ){
-						me.dataRetrieveCount --;
-					}
-					
-					me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
+					else
+					{
+						orgUnitsJSON.id = ouId;	
+						
+						// Save relationship
+						var networkGroupCount = 0;
+						
+						var ouGroupId = ( me.orgUnitInfo.isType_NetworkChild ) ? me.oProviderNetwork.networkData.networkChild_OUGroupID : me.oProviderNetwork.networkData.network_OUGroupID;
 						
 
-					// Display message
-					MsgManager.msgAreaShow( 'Added the orgUnit' );
+						if( ouGroupId !== undefined && ouGroupId != "" ){
+							networkGroupCount++;
+						}
+						
+						var selectedPrograms = me.selectedProgramAssignedOUTag.find("option[selectedOpt!='true']");
+						var selectedDataSets = me.selectedDatasetAssignedOUTag.find("option[selectedOpt!='true']");
+						me.dataRetrieveCount = selectedPrograms.length + selectedDataSets.length + networkGroupCount + orgUnitsJSON.organisationUnitGroups.length + 1;
+
+
+						// Show loading message..
+						tableSubMsgTag.find( 'div.loadingSubImg' ).show();
+						tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Adding Programs, DataSets, OrgUnitGroups..' );
+
+
+						// Add programs into selected OU
+						selectedPrograms.each(function(){
+							var programId = $(this).val();
+							var programName = $(this).text();
+							me.addProgramToOrgunit( ouId, programId, programName, orgUnitsJSON );
+						});
+						
+						// Add datasets into selected OU
+						selectedDataSets.each(function(){
+							var datasetId = $(this).val();
+							var datasetName = $(this).val();
+							me.addDatasetToOrgunit( ouId, datasetId, datasetName, orgUnitsJSON );
+						});
+						
+						var addedNetworkgroup = false;
+					
+						// Add org unit in selected OUG from Details tab
+						$.each( orgUnitsJSON.organisationUnitGroups, function( i, item ){
+							var groupId = item.id;
+							var groupName = item.name;
+							if( groupId == ouGroupId){
+								addedNetworkgroup = true;
+							}
+							me.addOrgunitInGroup( ouId, groupId, groupName, orgUnitsJSON );
+						});			
+					
+						// Add org unit in Network/NetworkChild OUGgroup				
+						if( ouGroupId !== undefined && ouGroupId != "" && !addedNetworkgroup ){
+							me.addOrgunitInGroup( ouId, ouGroupId, "", orgUnitsJSON );
+						}
+						else if( addedNetworkgroup ){
+							me.dataRetrieveCount --;
+						}
+						
+						me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
+							
+
+						// Display message
+						MsgManager.msgAreaShow( 'Added the orgUnit' );
+					}
+
+					dialogFormTag.dialog( "close" );
 				}
 
-				dialogFormTag.dialog( "close" );
 			}
+			, function()
+			{
+				MsgManager.networkListingMsgShow( 'Failed to create the organisation unit!' );
+			}
+			, function() 
+			{
+				tableSubMsgTag.find( 'div.loadingSubImg' ).show();
+				tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Adding OrgUnit Info..' );				
+			}
+			, function() 
+			{ 
+				if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
+			} 
+			);
 
-		}
-		, function()
-		{
-			MsgManager.networkListingMsgShow( 'Failed to create the organisation unit!' );
-		}
-		, function() 
-		{
-			tableSubMsgTag.find( 'div.loadingSubImg' ).show();
-			tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Adding OrgUnit Info..' );				
-		}
-		, function() 
-		{ 
-			if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
-		} 
-		);
+		} );
+
 	};
 	
 
@@ -2087,42 +2103,41 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		if(  me.mode == "Add" )
 		{
-			orgUnitsJSON = me.executeNetworkScript( "AfterCreation", orgUnitsJSON );
+			me.executeNetworkScript( "AfterCreation", orgUnitsJSON, function( orgUnitsJSON ) 
+			{
+				var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
 
-			var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
-
-			me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitData( ouId, me.mode );
-
+				me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitData( ouId, me.mode );
+			});
 		}
 		else if( me.mode == _mode_Edit )
 		{
 			// if 'openingDate' and 'closedDate', remove the time marker..
 			AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
 
-			orgUnitsJSON = me.executeNetworkScript( "AfterUpdate", orgUnitsJSON );
-
-			var mainOU_Data = orgUnitsJSON;
-		
-			if( me.orgUnitInfo.isType_NetworkChild )
+			me.executeNetworkScript( "AfterUpdate", orgUnitsJSON, function( orgUnitsJSON ) 
 			{
-				ouId = me.parentOrgUnitTag.val();
-				var ouList = me.dataListingTableManager.pivotOrgUnitRetrieved_InMemory;
-
-				if( Util.findItemFromList( ouList, "id", ouId ) != undefined )
+				var mainOU_Data = orgUnitsJSON;
+			
+				if( me.orgUnitInfo.isType_NetworkChild )
 				{
-					mainOU_Data = Util.findItemFromList( ouList, "id", ouId );
-					
-					Util.RemoveFromArray( mainOU_Data.children, "id", orgUnitsJSON.id );
-					
-					mainOU_Data.children.push( orgUnitsJSON );	
-					orgUnitsJSON.parent = mainOU_Data;
-				}
-			}
-			
-			me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitJsonData( orgUnitsJSON, me.mode, me.orgUnitInfo.networkTypeName );
-			
-		}	
+					ouId = me.parentOrgUnitTag.val();
+					var ouList = me.dataListingTableManager.pivotOrgUnitRetrieved_InMemory;
 
+					if( Util.findItemFromList( ouList, "id", ouId ) != undefined )
+					{
+						mainOU_Data = Util.findItemFromList( ouList, "id", ouId );
+						
+						Util.RemoveFromArray( mainOU_Data.children, "id", orgUnitsJSON.id );
+						
+						mainOU_Data.children.push( orgUnitsJSON );	
+						orgUnitsJSON.parent = mainOU_Data;
+					}
+				}
+				
+				me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitJsonData( orgUnitsJSON, me.mode, me.orgUnitInfo.networkTypeName );
+			});
+		}	
 	}
 
 	me.editOrgUnitAction = function( tableTag, dialogFormTag, tableSubMsgTag, msg )
@@ -2135,124 +2150,125 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			var orgUnitsJSON = me.generateOrgUnit_MetaData( tableTag, _mode_Edit, data );
 			
-			orgUnitsJSON = me.executeNetworkScript( "BeforeUpdate", orgUnitsJSON );
-
-			RESTUtil.submitPostAsyn( "PUT", orgUnitsJSON, queryURL_MetaData
-			, function( result )
+			me.executeNetworkScript( "BeforeUpdate", orgUnitsJSON, function( orgUnitsJSON ) 
 			{
-				me.progressSuccess = true;
 
-				if( result.response.importConflicts !== undefined )
+				RESTUtil.submitPostAsyn( "PUT", orgUnitsJSON, queryURL_MetaData
+				, function( result )
 				{
-					dialogFormTag.unblock();
-					var message = data.response.importConflicts[0].value;
-					if( message.indexOf("message=") < 0 ){
-						alert( message );
+					me.progressSuccess = true;
+
+					if( result.response.importConflicts !== undefined )
+					{
+						dialogFormTag.unblock();
+						var message = data.response.importConflicts[0].value;
+						if( message.indexOf("message=") < 0 ){
+							alert( message );
+						}
+						else
+						{
+							var startIdx = message.indexOf("message=") + 9;
+							var endIdx = message.substring( startIdx, message.length ).indexOf( "'" );
+							alert( message.substring( startIdx, endIdx ) );
+						}
 					}
 					else
 					{
-						var startIdx = message.indexOf("message=") + 9;
-						var endIdx = message.substring( startIdx, message.length ).indexOf( "'" );
-						alert( message.substring( startIdx, endIdx ) );
+						var removePrograms = me.avalableProgramAssignedOUTag.find("option[selectedOpt='true']");
+						var selectedPrograms = me.selectedProgramAssignedOUTag.find("option[selectedOpt!='true']");
+						var removeDatasets = me.avalableDatasetAssignedOUTag.find("option[selectedOpt='true']");
+						var selectedDataSets = me.selectedDatasetAssignedOUTag.find("option[selectedOpt!='true']");
+						var removeOUGroups = me.avalableOUGroupAssignedOUTag.find("option[selectedOpt='true']");
+						var selectedOUs = me.selectedOUGroupAssignedOUTag.find("option[selectedOpt!='true']");
+						var ouGroupSetsLen = orgUnitsJSON.organisationUnitGroupAdded.length + orgUnitsJSON.organisationUnitGroupDeleted.length;
+						me.dataRetrieveCount = selectedPrograms.length + selectedDataSets.length + selectedOUs.length + removePrograms.length + removeDatasets.length + removeOUGroups.length + ouGroupSetsLen;	
+						
+
+						// NOTE: Has a mechanizm to call the dataListing row Edit - only when everything is done.
+						tableSubMsgTag.find( 'div.loadingSubImg' ).show();
+						tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Removing Existing and Adding Programs, DataSets, OrgUnitGroups..' );
+
+
+						// Delete programs into selected OU
+						removePrograms.each(function(){
+							var programId = $(this).val();
+							var programName = $(this).text();
+							me.deleteProgramToOrgunit( orgunitId, programId, programName, orgUnitsJSON );
+						});
+						
+						// Add programs into selected OU
+						selectedPrograms.each(function(){
+							var programId = $(this).val();
+							var programName = $(this).text();
+							me.addProgramToOrgunit( orgunitId, programId, programName, orgUnitsJSON );
+						});
+						
+						// Delete datasets into selected OU
+						removeDatasets.each(function(){
+							var datasetId = $(this).val();
+							var datasetName = $(this).text();
+							me.deleteDatasetToOrgunit( orgunitId, datasetId, datasetName, orgUnitsJSON );
+						});
+						
+						// Add datasets into selected OU
+						selectedDataSets.each(function(){
+							var datasetId = $(this).val();
+							var datasetName = $(this).text();
+							me.addDatasetToOrgunit( orgunitId, datasetId, datasetName, orgUnitsJSON );
+						});
+						
+						// Delete OUGs into selected OU
+						removeOUGroups.each(function(){
+							var groupId = $(this).val();
+							var groupName = $(this).text();
+							me.deleteOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
+						});
+						
+						// Add OUGs into selected OU
+						selectedOUs.each(function(){
+							var groupId = $(this).val();
+							var groupName = $(this).text();
+							me.addOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
+						});
+						
+						// Delete org unit in selected OUG from Details tab
+						$.each( orgUnitsJSON.organisationUnitGroupDeleted, function( i, item ){
+							var groupId = item.id;
+							var groupName = item.name;
+							me.deleteOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
+						});
+						
+						// Add org unit in selected OUG from Details tab
+						$.each( orgUnitsJSON.organisationUnitGroupAdded, function( i, item ){
+							var groupId = item.id;
+							var groupName = item.name;
+							me.addOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
+						});
+																		
+						me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
+						
+						
+						// Display message
+						MsgManager.msgAreaShow( _mode_Edit + ' the orgUnit performed.' );
+
 					}
 				}
-				else
+				, function()
 				{
-					var removePrograms = me.avalableProgramAssignedOUTag.find("option[selectedOpt='true']");
-					var selectedPrograms = me.selectedProgramAssignedOUTag.find("option[selectedOpt!='true']");
-					var removeDatasets = me.avalableDatasetAssignedOUTag.find("option[selectedOpt='true']");
-					var selectedDataSets = me.selectedDatasetAssignedOUTag.find("option[selectedOpt!='true']");
-					var removeOUGroups = me.avalableOUGroupAssignedOUTag.find("option[selectedOpt='true']");
-					var selectedOUs = me.selectedOUGroupAssignedOUTag.find("option[selectedOpt!='true']");
-					var ouGroupSetsLen = orgUnitsJSON.organisationUnitGroupAdded.length + orgUnitsJSON.organisationUnitGroupDeleted.length;
-					me.dataRetrieveCount = selectedPrograms.length + selectedDataSets.length + selectedOUs.length + removePrograms.length + removeDatasets.length + removeOUGroups.length + ouGroupSetsLen;	
-					
-
-					// NOTE: Has a mechanizm to call the dataListing row Edit - only when everything is done.
-					tableSubMsgTag.find( 'div.loadingSubImg' ).show();
-					tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Removing Existing and Adding Programs, DataSets, OrgUnitGroups..' );
-
-
-					// Delete programs into selected OU
-					removePrograms.each(function(){
-						var programId = $(this).val();
-						var programName = $(this).text();
-						me.deleteProgramToOrgunit( orgunitId, programId, programName, orgUnitsJSON );
-					});
-					
-					// Add programs into selected OU
-					selectedPrograms.each(function(){
-						var programId = $(this).val();
-						var programName = $(this).text();
-						me.addProgramToOrgunit( orgunitId, programId, programName, orgUnitsJSON );
-					});
-					
-					// Delete datasets into selected OU
-					removeDatasets.each(function(){
-						var datasetId = $(this).val();
-						var datasetName = $(this).text();
-						me.deleteDatasetToOrgunit( orgunitId, datasetId, datasetName, orgUnitsJSON );
-					});
-					
-					// Add datasets into selected OU
-					selectedDataSets.each(function(){
-						var datasetId = $(this).val();
-						var datasetName = $(this).text();
-						me.addDatasetToOrgunit( orgunitId, datasetId, datasetName, orgUnitsJSON );
-					});
-					
-					// Delete OUGs into selected OU
-					removeOUGroups.each(function(){
-						var groupId = $(this).val();
-						var groupName = $(this).text();
-						me.deleteOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
-					});
-					
-					// Add OUGs into selected OU
-					selectedOUs.each(function(){
-						var groupId = $(this).val();
-						var groupName = $(this).text();
-						me.addOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
-					});
-					
-					// Delete org unit in selected OUG from Details tab
-					$.each( orgUnitsJSON.organisationUnitGroupDeleted, function( i, item ){
-						var groupId = item.id;
-						var groupName = item.name;
-						me.deleteOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
-					});
-					
-					// Add org unit in selected OUG from Details tab
-					$.each( orgUnitsJSON.organisationUnitGroupAdded, function( i, item ){
-						var groupId = item.id;
-						var groupName = item.name;
-						me.addOrgunitInGroup( orgunitId, groupId, groupName, orgUnitsJSON );
-					});
-																	
-					me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
-					
-					
-					// Display message
-					MsgManager.msgAreaShow( _mode_Edit + ' the orgUnit performed.' );
-
+					MsgManager.msgAreaShow( "Failed to update the organisation unit!" );
 				}
-			}
-			, function()
-			{
-				MsgManager.msgAreaShow( "Failed to update the organisation unit!" );
-			}
-			, function() 
-			{
-				tableSubMsgTag.find( 'div.loadingSubImg' ).show();
-				tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Editing OrgUnit Info..' );			
-			}
-			, function() 
-			{ 
-				if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
-			} 
-			)
+				, function() 
+				{
+					tableSubMsgTag.find( 'div.loadingSubImg' ).show();
+					tableSubMsgTag.find( 'div.loadingSubMsg' ).text( ' - Editing OrgUnit Info..' );			
+				}
+				, function() 
+				{ 
+					if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
+				} 
+				)
+			});
 		});
-
 	};
 
 	me.addProgramToOrgunit = function( ouId, programId, programName, orgUnitsJSON ){
