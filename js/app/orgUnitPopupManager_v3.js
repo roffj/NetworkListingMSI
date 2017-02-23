@@ -694,7 +694,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			_fromScriptCallFunc = undefined;
 
 			// Set some variables to have it available from script
-			_countryOuId = me.orgUnitInfo.countryInfo.id;
+			_script_CountryOuid = me.orgUnitInfo.countryInfo.id;
 			_orgUnitsJson = orgUnitsJSON;
 
 			eval( script );
