@@ -415,6 +415,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 								{
 									// Actual Create perform
 									var orgUnitsJSON = me.generateOrgUnit_MetaData( me.orgUnitAddTabTag, "Add" );
+
 									me.createOrgUnitAction( orgUnitsJSON, me.dialogFormTag, tableSubMsgTag, "Add organisation unit information successfully.");
 								}
 								else
@@ -670,7 +671,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		}
 	}
 
-	me.executeNetworkScript = function( actionType, input_ouId )
+	me.executeNetworkScript = function( actionType, orgUnitsJSON )
 	{
 		var networkData = me.oProviderNetwork.getSelectedNetworkData();
 		var scripts = networkData.scripts;
@@ -678,8 +679,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		var networkTypeName = me.orgUnitInfo.networkTypeName;
 		var ouId = "";
 
-		
-		if ( input_ouId !== undefined ) ouId = input_ouId;
+		if ( orgUnitsJSON !== undefined && orgUnitsJSON.id !== undefined ) ouId = orgUnitsJSON.id;
 		else if ( me.orgUnitInfo.ouId !== undefined ) ouId = me.orgUnitInfo.ouId;
 		else ouId = "";
 
@@ -688,23 +688,28 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			// Need to varify if this is 'Network' or 'NetworkChild'
 			var actionScripts = scripts[ networkTypeName + "Scripts" ];
-			var script = actionScripts[ actionType ].replace( '[ouid]', ouId );
+			var script = actionScripts[ actionType ].replace( "[ouid]", ouId );
 
-			//console.log( 'networkData.script: ' + script );
-
+			// Clear the '_orgUnitJsonAddition' which could be set within 'script'
 			_orgUnitJsonAddition = undefined;
+
+			// Aass into script variables set
+			_orgUnitsJson = orgUnitsJSON;
 
 			eval( script );
 
-			// After executing, if the special variable is found, sne dit..	
-			// But we should clear it out before executing!!!
+			// After executing the Script, if script populated '_orgUnitJsonAddition', merge it with orgUnitsJSON
+			if ( _orgUnitJsonAddition !== undefined ) {
+				orgUnitsJSON = mergeDeep( orgUnitsJSON, _orgUnitJsonAddition );
+			}
 		}
 		catch (err)
 		{
 			console.log( 'Error Caught in executeNetworkScript: ' + err.message );
 		}
 
-		return ( _orgUnitJsonAddition !== undefined ) ? _orgUnitJsonAddition : {};
+		// return the additional JSON that it to be merged with orgUnitJSON.
+		return orgUnitsJSON;
 	}
 
 	// -------------------------------------------------------------------------
@@ -1938,15 +1943,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		var queryURL_MetaData = _queryURL_api + "organisationUnits";
 		
-		var ouJsonAddition = me.executeNetworkScript( "BeforeCreation" );
-
-		//orgUnitsJSON.testArr = [{id: '11'}, {id: '12'}];
-
-		// Merge the orgUnitsJson
-		//$.extend( true, orgUnitsJSON, ouJsonAddition );
-		orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
-
-		//console.log( orgUnitsJSON );
+		orgUnitsJSON = me.executeNetworkScript( "BeforeCreation", orgUnitsJSON );
 
 		RESTUtil.submitPostAsyn( "POST", orgUnitsJSON, queryURL_MetaData		
 		, function( data )
@@ -2090,40 +2087,19 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		if(  me.mode == "Add" )
 		{
-			var ouJsonAddition = me.executeNetworkScript( "AfterCreation", orgUnitsJSON.id );
-
-			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
-			//$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = me.executeNetworkScript( "AfterCreation", orgUnitsJSON );
 
 			var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
 
 			me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitData( ouId, me.mode );
 
-
-			// After this, populate just one row.
-			// And retrieve one row  - with ajax..
-			// But with our retrival, we can simply call one line?
-
-			// 1. Under country, network level
-
-			//http://localhost:8080/api/organisationUnits/WuN3YdzxEtp.json?level=3&fields=id,name,displayName,level,parents[id,name,level],ancestors[id,name,level],parent[id,name],name,shortName,children[id,name]
-
-			// { new ouId }.json?fields=id,name,displayName,level
-				//,parents[id,name,level],ancestors[id,name,level],parent[id,name],name,shortName,children[id,name]
-
-			// 2. Even on OrgUnit Group, use same way as above..
-
-
 		}
 		else if( me.mode == _mode_Edit )
 		{
-			me.executeNetworkScript( "AfterUpdate" );
-
 			// if 'openingDate' and 'closedDate', remove the time marker..
-			var ouJsonAddition = AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
+			AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
 
-			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
-			//$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = me.executeNetworkScript( "AfterUpdate", orgUnitsJSON );
 
 			var mainOU_Data = orgUnitsJSON;
 		
@@ -2151,18 +2127,15 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 	me.editOrgUnitAction = function( tableTag, dialogFormTag, tableSubMsgTag, msg )
 	{
-
 		var orgunitId = tableTag.attr( 'ouid' );
 
-		var ouJsonAddition = me.executeNetworkScript( "BeforeUpdate" );
-
 		var queryURL_MetaData = _queryURL_api + "organisationUnits/" + orgunitId;
+		
 		me.getOrgUnitInforAction( orgunitId, function( data )
 		{
 			var orgUnitsJSON = me.generateOrgUnit_MetaData( tableTag, _mode_Edit, data );
 			
-			orgUnitsJSON = mergeDeep( orgUnitsJSON, ouJsonAddition );
-			//$.extend( true, orgUnitsJSON, ouJsonAddition );
+			orgUnitsJSON = me.executeNetworkScript( "BeforeUpdate", orgUnitsJSON );
 
 			RESTUtil.submitPostAsyn( "PUT", orgUnitsJSON, queryURL_MetaData
 			, function( result )
