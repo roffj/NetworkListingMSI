@@ -76,6 +76,8 @@
 	// - ViewServiceManager - 
 	// - ViewColumnsTableManager - 
 
+	// - OrgUnitSearchManager	- Search Network/Child orgUnits
+
 
 	// === Popup Form Classes ===
 	// - SettingDataPopupForm	<-- In separate JS file.
@@ -139,6 +141,8 @@
 	// --------------
 	var _middleSpeed = 400;
 	var _fastSpeed = 400;
+
+	var _appSetting = { "msgAutoHide": true };
 	// ================================
 
 
@@ -2569,21 +2573,7 @@
 			
 
 			// Sort Number Setup
-			var sortNumberTag = newRowTag.find( '.sortNumber' );
-			
-			var rowNumber = tableTag.find( 'tr.trDataNew[rowid]' ).length;
-
-			if ( rowNumber > 1 )
-			{
-				for (var i = 1; i < rowNumber ; i++ )
-				{
-					sortNumberTag.append( '<option value="' + i + '">' + i + '</option>' );
-				}
-			}
-
-			// Add new number option at the end..
-			tableTag.find( '.sortNumber' ).append( '<option value="' + rowNumber + '">' + rowNumber + '</option>' );
-			sortNumberTag.val( '' );
+			me.reset_sortOrderLists( tableTag );
 
 
 			// Sort Direction Setup
@@ -2593,7 +2583,7 @@
 
 			me.setup_RowOnChangeEvent( newRowTag, newRowTag.find( '.typeValue' ), typeList );
 
-			me.setup_RemoveRowEvent( newRowTag );
+			me.setup_RemoveRowEvent( tableTag, newRowTag );
 
 			me.setUp_RowDragSort( tableTag, newRowTag );
 			
@@ -2602,6 +2592,47 @@
 			return newRowTag;
 		};
 
+
+		me.reset_sortOrderLists = function( tableTag )
+		{
+			// Step 1. Sort tabs by the order..
+			var tagList = [];
+			
+			var sortOrderTags = tableTag.find( '.sortNumber' );
+
+			sortOrderTags.each( function( i ) {
+				var tag = $( this );
+				tagList.push( { 'val': Number( tag.val() ), 'tag': tag } );
+			});
+
+
+			var sortedListTags = Util.sortByKey( tagList, 'val' );
+			var listJson = [];
+			
+			// Step 2. Set the trimmed value + create 'listJson' for new listing
+			var iSortNum = 1;
+			$.each( sortedListTags, function( i_tag, item_tag ) {
+				if ( item_tag.val > 0 ) {
+					item_tag.tag.val( iSortNum );
+					iSortNum++;
+				}
+
+				var countNumber = i_tag + 1;
+				listJson.push( { 'id': countNumber, 'name': countNumber } );
+			});
+
+
+			// Step 3. Switch back 0 to empty value - was set on top
+			sortOrderTags.each( function( i ) {
+				var tag = $( this );
+				if ( tag.val() == 0 ) tag.val( '' );
+			});
+
+
+			// Step 4. Re-list the dropdown selections with value copy
+			Util.reset_tagsListData( sortOrderTags, listJson );
+
+		}
 
 
 		// -----------------------------
@@ -2757,13 +2788,15 @@
 		});
 
 
-		me.setup_RemoveRowEvent = function( trRow )
+		me.setup_RemoveRowEvent = function( tableTag, trRow )
 		{
 			trRow.find( 'input.settingRemove' ).click( function()
 			{
 				trRow.hide( _middleSpeed, function()
 				{
 					trRow.remove();
+
+					me.reset_sortOrderLists( tableTag );
 
 					// Save the column setting Table data
 					me.saveViewColumnsInfo( me.viewColumnsTableTag, me.viewPivotTag );
@@ -5006,6 +5039,7 @@
 									orgUnitDivTag.append( divNetworkChildDataTag );
 									divTdDataTag.append( orgUnitDivTag );
 									var value = item_ou[ typeValue ];
+									value = AppUtil.formatValByType( typeValue, value );
 									divTdDataTag.attr( "dataValue", value );
 									
 									if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -5089,7 +5123,9 @@
 						{
 							var pivotOuData = me.getPivotOrgUnitRetrieved_ById( ouid );
 							var value = pivotOuData[ typeValue ];
+							value = AppUtil.formatValByType( typeValue, value );
 							divTdDataTag.attr( "dataValue", value );
+
 											
 							if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
 							{
@@ -5126,6 +5162,7 @@
 							{
 								var pivotOuData = me.getPivotOrgUnitRetrieved_ById( ouid );
 								var value = pivotOuData[ typeValue ];
+								value = AppUtil.formatValByType( typeValue, value );
 								divTdDataTag.attr( "dataValue", valueFound );
 								
 								if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -5163,6 +5200,7 @@
 						{
 							var pivotOU = me.getPivotOrgUnitRetrieved_ById( ouid );
 							var value = pivotOU.parent[ typeValue ];
+							value = AppUtil.formatValByType( typeValue, value );
 							divTdDataTag.attr( "dataValue", value );
 								
 							if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -8346,6 +8384,18 @@
 
 		MsgManager.spanMsgAreaTextTag.text( msg );
 		MsgManager.divMsgAreaTag.show( 'medium' );
+
+		console.log( ' ==[MsgArea]: ' + msg );
+
+
+		if ( _appSetting.msgAutoHide ) {
+
+			// Call to hide once after some time...
+			Util.delayOnceTimeAction( 5000, 'msgArea', function() {
+
+				MsgManager.divMsgAreaTag.hide( 'fast' );
+			});
+		}
 	};
 
 
@@ -8523,6 +8573,12 @@
 		}
 
 		return networkTypeName;
+	}
+
+
+	AppUtil.formatValByType = function( typeValue, value )
+	{
+		return ( typeValue == "openingDate" || typeValue == "closedDate" ) ? value.substring( 0, 10 ) : value;
 	}
 
 
@@ -8748,7 +8804,7 @@
 						</div>
 					</td>
 					<td>						
-						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.121</span></a>
+						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.122</span></a>
 						| <button type="button" id="closeButton"><span nameId='closeButton'>Close</span></button>
 					</td>
 				</tr>
@@ -8779,7 +8835,7 @@
 					</td>
 					<td>
 
-					  <div id="divViewSection" style="margin-left: 5px; padding-right:4px; padding-left:4px;">
+					  <div id="divViewSection" style="margin-left: 5px; padding-right:4px; padding-left:4px; border-radius: 4px;">
 
 					    <table>
 						<tr>
@@ -8834,16 +8890,16 @@
 					</td>
 					<td>
 
-						<div id="divOuSearchSection" style="background-color: #F7FBFF; border: 1px solid LightGray; margin-left: 10px; padding-right:4px; padding-left:4px;"> 
+						<div id="divOuSearchSection" style="background-color: #F7FBFF; border: 1px solid LightGray; margin-left: 10px; padding-right:4px; padding-left:4px; border-radius: 4px;"> 
 
 							<table>
 							<tr>
 							  <td>
-								<span class="divSectionTitle">OU Select: </span>
+								<span class="divSectionTitle">OrgUnit Search:</span>
 							  </td>
 							  <td style="white-space: nowrap;">
-								<div id="divOuSearch">
-									<input type="search" id="orgUnitName" size="30" style="background-color: #FFF; padding-left: 3px;" /><input type="button" id="orgUnitTreeBtn" value="T" title="Open OrgUnitTree" style="cursor:pointer; margin:0px; padding:1px 2px; color:#777777; background-color: #DAE4FF; border-left: none; display:none;">
+								<div id="divOuSearch" style="margin-left: 4px;">
+									<input type="search" id="orgUnitName" size="30" placeholder="Type Network/Child Name" style="background-color: #FFF; padding-left: 3px;" /><input type="button" id="orgUnitTreeBtn" value="T" title="Open OrgUnitTree" style="cursor:pointer; margin:0px; padding:1px 2px; color:#777777; background-color: #DAE4FF; border-left: none; display:none;">
 								</div>
 							  </td>
 							  <td>
@@ -8876,12 +8932,12 @@
 
 			<div id="mainContent" style="display:none; clear: both; ">
 
-				<div id="divDataListing" style="display:none; margin-top: 5px; margin-right:10px;">
+				<div id="divDataListing" style="display:none; margin-top: 1px; margin-right:10px;">
 
 					<table style="min-width:460px;" >
 					<tr>
 						<td>
-							<hr noshade size="1" align="left" style="border-color: #AAAAAA;">
+							<hr noshade size="1" align="left" style="border-color: #DDD;">
 						</td>
 					</tr>
 					<tr>
@@ -8925,7 +8981,7 @@
 					</tr>
 					<tr>
 						<td>
-							<table id="datatable" class="tbDataListingTable dataListTable alternateColor tablesorter" style="min-width:500px; margin-top: 5px; display:none;" >
+							<table id="datatable" class="tbDataListingTable dataListTable alternateColor tablesorter" style="min-width:500px; margin-top: 0px; display:none;" >
 								<thead></thead>
 								<tbody></tbody>
 								<tfoot></tfoot>
@@ -9357,7 +9413,7 @@
 					
 					</td>
 					<td align="right">
-						<div id="divSettingDataChanged" style="display: none; color: Red;">[Changed]</div>
+						<div id="divSettingDataChanged" style="display: none; font-weight: bold; color: White; background-color: Red; display: -webkit-inline-box; padding: 3px 10px;">[Changed]</div>
 					</td>
 				</tr>
 				</table>
@@ -9562,7 +9618,7 @@
 
 							<div class="networkSettingTab" code="network_Attr" id="Sec2">
 
-								<table class="tblNetworkSetting listTable_D1"  style="font-size:small; margin-left:0px; margin-top:3px;" width="100%">
+								<table class="tblNetworkSetting listTable_D1"  style="margin-left:0px; margin-top:3px;" width="100%">
 									<thead>
 										<tr class="trHeader" style="font-size: 1px;">
 											<th width='20%' style="font-size: 1px;">&nbsp;</th>
@@ -9669,7 +9725,7 @@
 								</div>
 								<div class="divNetworkChildAttributes" style="display:none;">
 
-									<table class="tblNetworkSetting listTable_D1"  style="font-size:small; margin-left:0px; margin-top:3px;" width="100%">
+									<table class="tblNetworkSetting listTable_D1"  style="margin-left:0px; margin-top:3px;" width="100%">
 										<thead>
 											<tr class="trHeader" style="font-size: 1px;">
 												<th width='20%' style="font-size: 1px;">&nbsp;</th>
@@ -10113,7 +10169,7 @@
 
 			<div id="orgUnitAddTab" class="tabStyle_Simple" style="margin: 5px; width: 640px;" ouid="" >
 			  
-			  <input type="hidden" id="parentOrgUnit" mandatory="true" >				
+			  <input type="hidden" id="parentOrgUnit">				
 
 			  <ul id="orgUnitFormTabUl">
 				<li><a href="#detailTab">Details</a></li>
@@ -10128,8 +10184,19 @@
 					<tr id="searchParentOuTR">
 						<td>Parent <span class="required">*</span></td>
 						<td>
-							<input type="text" id="parentOrgUnitSearch" class="ouForm" mandatory="true" style="width:400px; background-color:#fff;">
-							<img src='img/ui-anim_basic.gif'  id='parentOuLoading' style='display:none'/>
+							<table class="tbNone">
+							<tr>
+							<td>
+								<input type="text" id="parentOrgUnitSearch" class="ouForm" mandatory="true" hasMsgDiv="divParentOrgUnitMsg" size="57" placeholder="Type Parent OrgUnit Name Here.">
+							</td>
+							<td>
+								<div id='parentOuLoading' style='display:none'>
+									<img src='img/ui-anim_basic.gif'/>
+								</div>
+							</td>
+							</tr>
+							</table>
+							<div id="divParentOrgUnitMsg" style="display: none; color: Red;">Please select a valid parent Org Unit</div>
 						</td>
 					</tr>
 

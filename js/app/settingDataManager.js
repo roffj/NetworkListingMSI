@@ -20,7 +20,7 @@ var _listDisplayName_General = "GLOBAL SETTINGS";
 // ==============================================
 
 
-// -------------------------------------------
+// =============================================
 // Class - SettingDataPopupForm
 //		- Used for popup Setting Form
 
@@ -107,6 +107,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 	me.viewList_StaticName = "viewList";
 
 	me.generalAttributes = { 'Network_Attr': [], 'NetworkChild_Attr': [] };
+	me.generalData = {};  // 'countryLvl' = '3', 'analytics' = 'Enable'
 
 	me.changeMade = false;
 
@@ -180,7 +181,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		{
 			me.populateSectionList( me.sectionListTag, settingData );
 
-			me.getAndSetGeneralOUAttributeList( settingData );
+			me.getAndMemorizeGeneralData( settingData );
 
 			// Initially, show the 'General'
 			//me.populateNetworkSettingTables( me.tblNetworkSettingTags, settingData, _sectionName_General );
@@ -262,37 +263,47 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		}
 		else
 		{
-			var mandatoryFields = me.divSettingMainContentTag.find( 'input[mandatory="true"],select[mandatory="true"]' ).filter( function() { return $( this ).closest( 'tr' ).css( 'display' ) != 'none'; } );
-
-			// Clear the highlights
-			Util.paintClear( mandatoryFields );
-
-			// if empty mandatory fields exists, paint it and do not returnFunc
-			var emptyMandatories = mandatoryFields.filter( function() { return ( !$( this ).prop( 'disabled' ) && $( this ).val() == "" ); } );
-
-
-			if ( emptyMandatories.length > 0 ) 
-			{
-				Util.paintWarning( emptyMandatories );
-
-				// Set to 'Network Setup' tab
-				me.divSettingMainContentTag.find( 'li[code="details"] a.tabAnchor' ).click();
-
-				// Pull back to previous one..
-				if ( section_Previous !== undefined )
-				{
-					me.sectionListTag.val( section_Previous );
-				}
-
-
-				alert( 'Please fill mandatory fields before closing/changing the network!' );
-
-
-				if ( failFunc !== undefined ) failFunc();
-			}
-			else 
+			// If the network selection is empty, and content div is already hidden (originally hidden case (including deleted case), do not check for mandatory validation
+			if (  me.sectionListTag.val() == "" && !me.divSettingMainContentTag.is( ':visible' ) )
 			{
 				successFunc();
+			}
+			else
+			{
+				var mandatoryFields = me.divSettingMainContentTag.find( 'input[mandatory="true"],select[mandatory="true"]' ).filter( function() { return $( this ).closest( 'tr' ).css( 'display' ) != 'none'; } );
+
+
+				// Clear the highlights
+				Util.paintClear( mandatoryFields );
+
+
+				// if empty mandatory fields exists, paint it and do not returnFunc
+				var emptyMandatories = mandatoryFields.filter( function() { return ( !$( this ).prop( 'disabled' ) && $( this ).val() == "" ); } );
+
+
+				if ( emptyMandatories.length > 0 ) 
+				{
+					Util.paintWarning( emptyMandatories );
+
+					// Set to 'Network Setup' tab
+					me.divSettingMainContentTag.find( 'li[code="details"] a.tabAnchor' ).click();
+
+					// Pull back to previous one..
+					if ( section_Previous !== undefined )
+					{
+						me.sectionListTag.val( section_Previous );
+					}
+
+
+					alert( 'Please fill mandatory fields before closing/changing the network!' );
+
+
+					if ( failFunc !== undefined ) failFunc();
+				}
+				else 
+				{
+					successFunc();
+				}
 			}
 		}
 	}
@@ -677,9 +688,21 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 	}
 
 
-	me.getAndSetGeneralOUAttributeList = function( settingData )
+	// 
+	me.getAndMemorizeGeneralData = function( settingData )
 	{
 		me.setGeneralAttributes( me.getGeneralAttributesObj( settingData ) );		
+
+
+		me.generalData = {};  // Reset data.
+
+		// Other info..
+		var countryLvl = me.getSectionTypeData_FromInputData( settingData, _sectionName_General, 'Country_LVL' );
+		var analytics = me.getSectionTypeData_FromInputData( settingData, _sectionName_General, 'Analytics' );
+
+		if ( countryLvl !== undefined ) me.generalData.countryLvl = countryLvl.value;
+
+		if ( analytics !== undefined ) me.generalData.analytics = analytics.value;
 	}
 
 
@@ -805,6 +828,33 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		me.changeMade = true;
 		me.divSettingDataChangedTag.show();
 	}
+
+
+	// Good Util!!!
+	// only if found.  if not found, do not change
+	me.changeNetworks_ExistingValue = function( settingData, typeName, value )
+	{
+		var changed = false;
+
+		// Except the 'General', go through networks data and change them.
+		$.each( settingData, function( i_sec, item_sec )
+		{
+			if ( item_sec.secCode != _sectionName_General )
+			{				
+				$.each( item_sec.data, function( j, item_data )
+				{
+					if ( item_data.type == typeName )
+					{
+						item_data.value = value;
+						changed = true;
+					}
+				});
+			}
+		});
+
+		return changed;
+	}
+
 
 	// -----------------------------------------------------
 
@@ -1300,6 +1350,11 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 	}
 
 
+	// <-- move back to older code..
+
+
+
+
 	me.populateNetworkSettingTables = function( tableTag, settingData, sectionCode )
 	{
 		// populating table..  if the section data has 'notDeletable' as 'true', hide the delete button
@@ -1357,7 +1412,9 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			tableTag.find( 'tr.trData[settingType="CoordinateMapShow"]' ).hide();
 			tableTag.find( 'tr.trData[settingType="OUGroupsTabShow"]' ).hide();
 			tableTag.find( 'tr.trData[settingType="ProgramsDataSetsTabShow"]' ).hide();
-			tableTag.find( 'tr.trData[settingType="Analytics"]' ).hide();
+
+			// Show/Enable this.  Label it as 'Allow Analytics'
+			var rowAnalyticsGlobal = tableTag.find( 'tr.trData[settingType="Analytics"]' ).show();
 
 			tableTag.find( 'tr.scriptAction' ).hide();
 			tableTag.find( 'tr.HtmlTabList' ).hide();
@@ -1382,7 +1439,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			tableTag.find( 'tr.trData[settingType="CoordinateMapShow"]' ).show();
 			tableTag.find( 'tr.trData[settingType="OUGroupsTabShow"]' ).show();
 			tableTag.find( 'tr.trData[settingType="ProgramsDataSetsTabShow"]' ).show();
-			tableTag.find( 'tr.trData[settingType="Analytics"]' ).show();
+			tableTag.find( 'tr.trData[settingType="Analytics"]' ).hide();
 
 			tableTag.find( 'tr.scriptAction' ).show();
 			tableTag.find( 'tr.HtmlTabList' ).show();
@@ -1537,6 +1594,11 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 				tableTag.find( 'tr.trData[settingType="NetworkChild_OUGroup"]' ).show();
 				me.divNetworkChildAttributesTag.show();
 				me.divNetworkChildAttributesHideNoteTag.hide();
+			}
+
+			if ( me.generalData.analytics && me.generalData.analytics == "Enable" )
+			{
+				tableTag.find( 'tr.trData[settingType="Analytics"]' ).show();
 			}
 
 		}			
@@ -2317,6 +2379,17 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			}
 
 
+			// NOTE: HACK: If this is global and 'analytics' one is changed, change all the values..
+			if ( cntl.closest( 'tr.trData' ).attr( 'settingtype' ) == "Analytics" && me.sectionListTag.val() == _sectionName_General && cntl.val() == "" )
+			{
+				me.systemSettingDataManager.getSettingData( function( settingData )
+				{
+
+					me.changeNetworks_ExistingValue( settingData, 'Analytics', '' );
+				});
+			}
+	
+
 			me.saveNetworkRowData( cntl );
 
 		});
@@ -2476,7 +2549,9 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 				{
 					me.systemSettingDataManager.getSettingData( function( settingData )
 					{
-						me.getAndSetGeneralOUAttributeList( settingData );
+						// Retrieve and set in global variable for 'attribute list' of network/child and other global settings.
+						me.getAndMemorizeGeneralData( settingData );
+
 
 						// populate the section
 						me.populateNetworkSettingTables( me.tblNetworkSettingTags, settingData, me.sectionListTag.val() );
@@ -2700,11 +2775,13 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 					var ownerId = me.oProviderNetwork.getUserId();
 					var networkId = Util.generateRandomId();
 
-					console.log( 'ownerId: ' + ownerId );
-
 					// Create section data
 					var newSec = PNSettingDataManager.insertNewSectionData( settingData, networkName, ownerId, networkId, me.oProviderNetwork.getInitialSecurity() );
 						
+
+					// Order by network secCode
+					settingData = Util.sortByKey( settingData, "secCode" );
+
 
 					// Save Data
 					me.systemSettingDataManager.saveSettingData( settingData
@@ -2716,7 +2793,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 						me.populateSectionList( me.sectionListTag, settingData );
 						me.sectionListTag.val( networkName );
 
-						me.getAndSetGeneralOUAttributeList( settingData );
+						me.getAndMemorizeGeneralData( settingData );
 
 						// Populate the table
 						me.populateNetworkSettingTables( me.tblNetworkSettingTags, settingData, networkName );
@@ -2867,11 +2944,10 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 }
 
 // Class - SettingDataPopupForm
-// -------------------------------------------
+// =============================================
 
 
-
-// -------------------------------------------
+// =============================================
 // Class - ScriptDataManagerForm
 //		- Used for Script Data Manager Form
 
@@ -3238,11 +3314,11 @@ function ScriptDataManagerForm( oProviderNetwork )
 }
 
 // Class - ScriptDataManagerForm
-// -------------------------------------------
+// =============================================
 
 
 
-// -------------------------------------------
+// =============================================
 // Class - HtmlTabDataManagerForm
 //		- Used for Html Tab Data Manager Form
 
@@ -3608,13 +3684,13 @@ function HtmlTabDataManagerForm( oProviderNetwork )
 }
 
 // Class - HtmlTabDataManagerForm
-// -------------------------------------------
+// =============================================
 
 
 
 
 
-// -------------------------------------------
+// =============================================
 // -- Class - NetworkRenamePopupForm
 //		- Network Rename Popup Form
 function NetworkRenamePopupForm( settingDataPopupForm )
@@ -4120,13 +4196,12 @@ PNSettingDataManager.networkSettingDataInitialAction = function( settingDataMana
 }
 
 // REVIEW CHANGED #1
-PNSettingDataManager.updateSettingData_IfOld = function( json_Data )
+PNSettingDataManager.updateSettingData_IfOld = function( settingData )
 {
 	var updated = false;
 
-	$.each( json_Data, function( i, item )
+	$.each( settingData, function( i, item )
 	{
-
 		if( item.version === undefined )
 		{				
 			$.each( item.data, function( j, item_data )

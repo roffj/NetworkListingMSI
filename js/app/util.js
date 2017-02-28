@@ -532,6 +532,23 @@ Util.getSelectedOptionName = function( ctrlTag )
 	return ctrlTag.options[ ctrlTag.selectedIndex ].text();
 }
 
+
+
+Util.reset_tagsListData = function( tags, listJson )
+{
+	tags.each( function() {
+
+		var tag = $( this );
+		var tagVal = tag.val();
+
+		tag.find( 'option' ).remove();
+
+		Util.populateSelectDefault( tag, "", listJson );
+		
+		tag.val( tagVal );
+	});
+}
+
 // Seletet Tag Populate, Etc Related
 // ----------------------------------
 
@@ -899,3 +916,14 @@ Util.parseInt = function( input )
 
 // Others
 // ----------------------------------
+
+Util.oneTimeActions = {};
+
+Util.delayOnceTimeAction = function( delay, id, action ) {
+
+	// is there already a timer? clear if if there is
+	if ( Util.oneTimeActions[id] ) clearTimeout( Util.oneTimeActions[id] );
+
+	// set a new timer to execute delay milliseconds from last call
+	Util.oneTimeActions[id] = setTimeout( action, delay );
+};

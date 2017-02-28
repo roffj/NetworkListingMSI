@@ -37,7 +37,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	me.redIcon = 'img/red.png';
 	me.blueIcon = 'img/blue.png';
 
-	me.dateEndingTimeZone = 'T23:59:00.000Z';
+	//me.dateEndingTimeZone = 'T23:59:00.000Z';
 
 	me._loadingCss = { 
 		border: 'none'
@@ -67,6 +67,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	me.parentOrgUnitTag = $( '#parentOrgUnit' );
 	me.parentOrgUnitSearchTag = $( '#parentOrgUnitSearch' );
 	me.parentOuLoadingTag = $( '#parentOuLoading' );
+	me.divParentOrgUnitMsgTag = $( '#divParentOrgUnitMsg' );
 
 	me.addOrgunitFormBtnTag = $( '#addOrgunitFormBtn' );
 
@@ -444,45 +445,57 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	{
 		var message = "";
 		
-		// Check if the coordinate is valid
+		// CHECK if the coordinate is valid
 		var checkCoordinate = me.validateCoordinate( me.ouCoordinatesTag.val() );
 		if( !checkCoordinate )
 		{
-			me.ouCoordinatesTag.css( "border-color", "red" );
+			Util.paintWarning( me.ouCoordinatesTag );
 			message += "Coordinates is invalid. \n Longitude have to be in [-180, +180], latitude have to be in [-90, +90] \n";
 		}
 		else
 		{
-			me.ouCoordinatesTag.css( "border-color", "" );
+			Util.paintClear( me.ouCoordinatesTag );
 		}
 
 
-		// Check mandatory fields
+		// CHECK Parent OrgUnit Field - Proper Selection & Mandatory
+		var parentValidity = me.validateParentField( me.parentOrgUnitTag, me.parentOrgUnitSearchTag, me.divParentOrgUnitMsgTag );
 		
+		if ( !parentValidity.valid ) 
+		{
+			message += parentValidity.msg + '\n';
+		}
+
+
+		// CHECK mandatory fields (Except the Parent OrgUnit Field)
 		var mandatoryFail = false;
 
-		me.orgUnitAddTabTag.find( 'select[mandatory="true"],input[mandatory="true"]' ).each( function(){
-			Util.paintBorderClear( $( this ) );
+		me.orgUnitAddTabTag.find( 'select[mandatory="true"],input[mandatory="true"]' ).not( '#parentOrgUnitSearch' ).each( function(){
+			Util.paintClear( $( this ) );
 		});
 		
-		me.orgUnitAddTabTag.find( 'select[mandatory="true"],input[mandatory="true"]' ).each( function()
+		me.orgUnitAddTabTag.find( 'select[mandatory="true"],input[mandatory="true"]' ).not( '#parentOrgUnitSearch' ).each( function()
 		{
 			if ( Util.trim( $( this ).val() ) == "" )
 			{
 				mandatoryFail = true;
 
 				// Add backgound color to the manatory ones
-				Util.paintBorderWarning( $( this ) );
+				Util.paintWarning( $( this ) );
 			}
 		});
-		
+
 		if ( mandatoryFail )
 		{
-			dialogFormTag.unblock();
 			message += 'Please fill all the Mandatory fields first.';
 		}
 		
+
 		var valid = ( message.length == 0 );
+
+		if ( !valid ) dialogFormTag.unblock();
+
+
 		return { "valid" : valid , "message" : message };
 	};
 
@@ -549,12 +562,12 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 			if( !valid )
 			{
-				me.ouCoordinatesTag.css( "border-color", "red" );
+				Util.paintWarning( me.ouCoordinatesTag );
 				alert( "Coordinates is invalid. \n Longitude have to be in [-180, +180], latitude have to be in [-90, +90]" );
 			}
 			else
 			{
-				me.ouCoordinatesTag.css( "border-color", "" );
+				Util.paintClear( me.ouCoordinatesTag );
 
 				// TODO: If empty, remove marker is exists, set span to empty.. etc..
 				if ( Util.trim( value ) == "" )
@@ -935,33 +948,42 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			// use default delay time.
 			//delay: 0,  
-			minLength: 2			
-			,source: function( request, response ) 
+			//minLength: 2			
+			source: function( request, response ) 
 			{
 				// Reset the selected hidden id value
 				me.parentOrgUnitTag.val( "" );
-				Util.paintBorderWarning( inputTag );
+				Util.paintWarning( inputTag );
+				
+				//me.parentOuLoadingTag.hide();				
+				inputTag.removeClass( "ui-autocomplete-loading" );
 
+						
+				if ( request.term.length >= 2 )
+				{
+					// prepare data
+					var networkCountryId = me.orgUnitInfo.countryInfo.id;
+					var parentOuLevel = me.orgUnitInfo.orgUnitLevel - 1;
+					var queryURL = _queryURL_api + 'organisationUnits.json?paging=false&fields=id,name,parents,ancestors&filter=level:eq:' + parentOuLevel + '&filter=name:ilike:';		
+			
+					// Retrieving data (the match ) from user input
+					RESTUtil.getAsynchData( queryURL + inputTag.val(), function( json_Data )
+					{					
+						AppUtil.copyAncestorsToParents( json_Data.organisationUnits );
 
-				// prepare data
-				var networkCountryId = me.orgUnitInfo.countryInfo.id;
-				var parentOuLevel = me.orgUnitInfo.orgUnitLevel - 1;
-				var queryURL = _queryURL_api + 'organisationUnits.json?paging=false&fields=id,name,parents,ancestors&filter=level:eq:' + parentOuLevel + '&filter=name:ilike:';		
-		
-				// Retrieving data (the match ) from user input
-				RESTUtil.getAsynchData( queryURL + inputTag.val(), function( json_Data )
-				{					
-					AppUtil.copyAncestorsToParents( json_Data.organisationUnits );
+						var filteredList = me.filterOuByEditPermission( json_Data.organisationUnits );
 
-					var filteredList = me.filterOuByEditPermission( json_Data.organisationUnits );
+						// filter by network country ID from 'parents'  - data: { label: item.name, id: item.id }
+						filteredList = me.filterOuByCountry( filteredList, networkCountryId );
 
-					// filter by network country ID from 'parents'  - data: { label: item.name, id: item.id }
-					filteredList = me.filterOuByCountry( filteredList, networkCountryId );
+						response( filteredList );
+					}
+					, function() { alert( 'Failed to retrieve parents orgUnit list.' ); }
+					, function() { QuickLoading.dialogShowAdd( 'parentOuLoading' ); }
+					, function() { QuickLoading.dialogShowRemove( 'parentOuLoading' ); }
+					);
 
-					response( filteredList );
 				}
-				, function() { alert( 'Failed to retrieve parents orgUnit list.' ); }
-				);		
 			}
 			,open: function () 
 			{
@@ -979,14 +1001,57 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				// Mouse click select event
 				//inputTag.val( ui.item.value );
 				inputTag.val( ui.item.label );
-				Util.paintBorderClear( inputTag );	
-
 				me.parentOrgUnitTag.val( ui.item.id );
+				//Util.paintClear( inputTag );	
+				me.validateParentField( me.parentOrgUnitTag, me.parentOrgUnitSearchTag, me.divParentOrgUnitMsgTag );
 
+				inputTag.removeClass( "ui-autocomplete-loading" );
 				inputTag.autocomplete( "close" );
 			}
-		});		
+		});
+
+
+
+		// Do Invalid selection handling here
+
+		inputTag.on( 'change focusout', function() {
+		
+			me.validateParentField( me.parentOrgUnitTag, me.parentOrgUnitSearchTag, me.divParentOrgUnitMsgTag );
+		});
+
 	};
+
+
+	me.validateParentField = function( parentOrgUnitTag, parentOrgUnitSearchTag, divParentOrgUnitMsgTag )
+	{
+		var validity = { 'valid': false, 'validMandatory': false, 'validSelection': false, 'msg': '' };
+
+		var valid = false;
+
+		// Check hidden selection tag.. 
+		// Which get catched
+		validity.validSelection = ( parentOrgUnitTag.val() != "" );
+		validity.validMandatory = ( Util.trim( parentOrgUnitSearchTag.val() ) != "" );
+
+
+		if ( validity.validSelection && validity.validMandatory ) validity.valid = true;
+
+
+		// Show hidden message..
+		if ( validity.valid ) 
+		{
+			divParentOrgUnitMsgTag.hide();
+			Util.paintClear( parentOrgUnitSearchTag );
+		}
+		else 
+		{
+			divParentOrgUnitMsgTag.show();
+			Util.paintWarning( parentOrgUnitSearchTag );
+			validity.msg = divParentOrgUnitMsgTag.text();
+		}
+		
+		return validity;
+	}
 
 
 	me.filterOuByEditPermission = function( ouList )
@@ -1697,10 +1762,12 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		tableTag.find( 'ouAdd_dynamicAttr' ).val( '' );
 
 		// reset parents selection related
-		Util.paintBorderClear( me.parentOrgUnitSearchTag );		
+		Util.paintClear( me.parentOrgUnitSearchTag );		
 		me.parentOrgUnitSearchTag.val( "" );
 		me.parentOrgUnitTag.val( "" );
-
+		//me.parentOuLoadingTag.hide();
+		QuickLoading.dialogShowRemove( 'parentOuLoading' );
+		me.divParentOrgUnitMsgTag.hide();
 
 		Util.selectAllOption( me.selectedProgramAssignedOUTag );
 		Util.selectAllOption( me.selectedDatasetAssignedOUTag );
@@ -1722,6 +1789,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		me.spanCoordinateInfoTag.text( '' );
 		me.divCoordinateNoteTag.hide();
 		
+		tableTag.find( 'input[mandatory="true"],select[mandatory="true"]' ).not( '#parentOrgUnitSearch' ).off( 'change focusout' );
+
 	};
 
 	me.setFormHeight = function( useLocation )
@@ -1826,7 +1895,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 				// Note: If date type value, set it with last timezone
 				// - so that all the timezone will have same date
-				if ( $(this).hasClass( "hasDatepicker" ) && value != "" ) value += me.dateEndingTimeZone;
+				//if ( $(this).hasClass( "hasDatepicker" ) && value != "" ) value += me.dateEndingTimeZone;
 
 
 				if ( attributeName != "" && attributeName != "ouAdd_id" ) 
@@ -2113,7 +2182,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		else if( me.mode == _mode_Edit )
 		{
 			// if 'openingDate' and 'closedDate', remove the time marker..
-			AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
+			//AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
 
 			me.executeNetworkScript( "AfterUpdate", orgUnitsJSON, function( orgUnitsJSON ) 
 			{
@@ -2345,7 +2414,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			me.progressSuccess = false;
 			var errorTag = me.orgUnitAddTabTag.find( "select[class*=ougs_] option[value='" + groupId + "']" ).closest( "select" );
-			Util.paintBorderWarning( errorTag );
+			Util.paintWarning( errorTag );
 			alert( "Failed to add orgUnitGroup '" + groupName + "' to the orgUnit.  Error Msg: " + result.responseJSON.message );
 		});
 
@@ -2363,7 +2432,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 		{
 			me.progressSuccess = false;
 			var errorTag = me.orgUnitAddTabTag.find( "select[class*=ougs_] option[value='" + groupId + "']" ).closest( "select" );
-			Util.paintBorderWarning( errorTag );
+			Util.paintWarning( errorTag );
 			alert( "Failed to delete orgUnitGroup '" + groupName + "' from the orgUnit.  Error Msg: " + result.responseJSON.message );
 		});
 	};
@@ -2410,19 +2479,25 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 	me.setup_mandatoryFieldWarning = function( tableTag )
 	{
+		console.log( 'SETTING UP THE MANDATORY FIELDS!' );
+
+
 		var inputTags = tableTag.find( 'input[mandatory="true"],select[mandatory="true"]' ).not( '#parentOrgUnitSearch' );
-		
-		inputTags.off( 'change' ).on( 'change', function()
+		// Since parent has 2 error check, mandatory & proper selection
+		// We need to skip this and handle it else where..
+		// --- Or handle it inteligently?
+
+		inputTags.on( 'change focusout', function()
 		{
 			var tag = $( this );
 			
 			if( Util.trim( tag.val() ) == "" )
 			{
-				Util.paintBorderWarning( tag );
+				Util.paintWarning( tag );
 			}
 			else
 			{
-				Util.paintBorderClear( tag );
+				Util.paintClear( tag );
 			}
 		});
 	};
