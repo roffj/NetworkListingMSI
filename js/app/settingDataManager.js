@@ -613,7 +613,10 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			{
 				if ( Util.checkDefined( item_sec ) )
 				{
-					networkList.push( item_sec.secCode );
+					if ( me.getSectionSecurityPermission( 'View', item_sec ) )
+					{
+						networkList.push( item_sec.secCode );
+					}
 				}
 			});
 
@@ -1340,8 +1343,11 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 					hasGeneral = true;
 				}
 				else
-				{
-					secListTag.append( '<option value="' + item_sec.secCode + '">' + item_sec.secCode + '</option>' );
+				{				
+					if ( me.getSectionSecurityPermission( 'View', item_sec ) )
+					{
+						secListTag.append( '<option value="' + item_sec.secCode + '">' + item_sec.secCode + '</option>' );
+					}
 				}
 			}
 		});
@@ -1493,7 +1499,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 	me.setSectionVisibility_ByPermission = function( item_sec, tblNetworkSettingTag, divNetworkSettingSectionTag )
 	{		
-		var securityPermission = me.getSecurityPermission( item_sec );
+		var securityPermission = me.getSectionSecurityPermission( 'Edit', item_sec );
 		var tableControls = tblNetworkSettingTag.find( 'input,select,textarea,button' );
 
 		//console.log( 'setSectionVisibility_ByPermission, owner: ' + item_sec.owner );
@@ -1501,6 +1507,8 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 		if ( !securityPermission )
 		{
+			// READ-ONLY
+
 			divNetworkSettingSectionTag.hide();
 
 			Util.disableTag( tableControls, true );
@@ -1524,7 +1532,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		}
 	}
 
-	me.getSecurityPermission = function( sectionObj )
+	me.getSectionSecurityPermission = function( permType, sectionObj )
 	{
 		var allowed = false;
 
@@ -1541,8 +1549,21 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		{
 			if ( sectionObj.security !== undefined )
 			{
-				// Note - if permission is empty list, also allow it.
-				allowed = ( Util.checkValue( sectionObj.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( sectionObj.security.permissions ) : false ;
+				if ( permType == 'Edit' )
+				{
+					allowed = ( Util.checkValue( sectionObj.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( sectionObj.security.permissions, permType ) : false ;
+				}
+				else if ( permType == 'View' )
+				{
+					if ( sectionObj.security.anybodyView )
+					{
+						hasPermission = true;
+					}
+					else
+					{
+						allowed = ( Util.checkValue( sectionObj.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( sectionObj.security.permissions, permType ) : false ;
+					}
+				}
 			}
 			else
 			{
@@ -2291,7 +2312,12 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 			PNSettingDataManager.saveSectionByAttr( me.systemSettingDataManager, secCode, sectionObj.security, 'security', undefined, function( success )
 			{
-				if ( returnFunc !== undefined ) returnFunc( success );				
+				if ( returnFunc !== undefined )
+				{
+					if ( success ) MsgManager.msgAreaShow( "Added the user group on security." );
+
+					returnFunc( success );				
+				}
 			});
 		});
 	}
@@ -2306,10 +2332,36 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 			PNSettingDataManager.saveSectionByAttr( me.systemSettingDataManager, secCode, sectionObj.security, 'security', undefined, function( success )
 			{
-				if ( returnFunc !== undefined ) returnFunc( success );				
+				if ( returnFunc !== undefined ) 
+				{
+					if ( success ) MsgManager.msgAreaShow( "Removed the user group on security." );
+
+					returnFunc( success );				
+				}
 			});
 		});
 	}
+
+
+	me.setSectionSecurity_anybodyView = function( enabled, returnFunc )
+	{
+		var secCode = me.sectionListTag.val();
+
+		me.getSection( secCode, function( sectionObj )
+		{
+			sectionObj.security.anybodyView = enabled;
+			
+			PNSettingDataManager.saveSectionByAttr( me.systemSettingDataManager, secCode, sectionObj.security, 'security', undefined, function( success )
+			{
+				if ( returnFunc !== undefined ) 
+				{
+					if ( success ) MsgManager.msgAreaShow( "Anybody View set to " + enabled );
+
+					returnFunc( success );				
+				}
+			});
+		});
+	};
 
 
 	// If 'Add Section' mode, hide 'Section Edit' controls and the section contents.
@@ -2614,7 +2666,11 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 				var securityData = { 'sharingName': secCode, 'ownerId': sectionObj.owner, 'targetSecurityData': sectionObj.security };
 
-				me.oProviderNetwork.securitySettingPopupForm.openForm( securityData, me.addSectionSecurityPermissions, me.removeSectionSecurityPermissions );
+				me.oProviderNetwork.securitySettingPopupForm.openForm( securityData
+					, me.addSectionSecurityPermissions
+					, me.removeSectionSecurityPermissions
+					, me.setSectionSecurity_anybodyView
+					);
 				//me.oProviderNetwork.viewServiceManager.addViewSecurityPermissions
 
 			});

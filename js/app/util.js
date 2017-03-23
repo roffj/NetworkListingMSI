@@ -788,6 +788,13 @@ Util.isDate = function(date) {
 // ----------------------------------
 // Date Formatting Related
 
+Util.addZero = function( i )
+{
+    if (i < 10) {
+        i = "0" + i;
+    }
+    return i;
+}
 
 Util.formatDate = function( strDate )
 {

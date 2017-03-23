@@ -67,6 +67,11 @@ input.ouForm:disabled
 	background-color: #fff; !important; /* #f2f2f2; */
 }
 
+input[type="image"]
+{
+	vertical-align: bottom;
+}
+
 /*----------------------------------------------------------------------------*/
 /* Header Related                                                        */
 /*----------------------------------------------------------------------------*/
@@ -359,7 +364,7 @@ table {
 
 
 /*----------------------------------------------------------------------------*/
-/* Security Setting Related                                                          */
+/* Security Setting Popup Form Related                                                          */
 /*----------------------------------------------------------------------------*/
 
 .sharingSettings {
@@ -376,12 +381,17 @@ table {
 #sharingAccessTable {
   display: table;
   border-collapse: separate;
-  border-spacing: 2px;
+  /*border-spacing: 2px;*/
   border-color: gray;
 }
 
 #sharingAccessTable td {
   padding: 3px 0px;
+}
+
+.trAnybody td {
+	border-bottom: 1px solid #ccc;
+	margin-bottom: 5px;
 }
 
 .tipText {
@@ -391,6 +401,12 @@ table {
 .inputStyle {
   line-height: 140%;
   padding: 1px;
+}
+
+.crossOutDisabled
+{
+	text-decoration: line-through;
+	color: #888;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1497,7 +1513,6 @@ div#selectionTree a.locked
 	font-weight: bold;
 	color: #444;
 }
-
 
 /*----------------------------------------------------------------------------*/
 /* Other Page Css                                          */
