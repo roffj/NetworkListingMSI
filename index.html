@@ -408,7 +408,14 @@
 			RESTUtil.retrieveManager.retrieveData( queryURL
 			, function( json_Data ) 
 			{
-				var ouGroupSets = Util.sortByKey( json_Data.organisationUnitGroupSets, "displayName" );
+				var ouGroupSets = Util.sortByKey( json_Data.organisationUnitGroupSets, "name" );
+				
+				// Go through each groupSet and order the orgUnitGroups by name or displayName
+				$.each( ouGroupSets, function( i_ougs, item_ougs )
+				{
+					item_ougs.organisationUnitGroups = Util.sortByKey( item_ougs.organisationUnitGroups, "name" );
+				});
+
 				runFunc( ouGroupSets );
 			}
 			, function()
@@ -8930,7 +8937,7 @@
 						</div>
 					</td>
 					<td>						
-						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.123</span></a>
+						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.124</span></a>
 						| <button type="button" id="closeButton"><span nameId='closeButton'>Close</span></button>
 					</td>
 				</tr>

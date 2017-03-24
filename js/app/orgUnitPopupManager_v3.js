@@ -1292,6 +1292,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				if ( orgunitGroupSet !== undefined )
 				{
 					var groups = ( orgunitGroupSet.organisationUnitGroups === undefined ) ? [] : orgunitGroupSet.organisationUnitGroups;
+					// Util.sortByKey( orgunitGroupSet.organisationUnitGroups, 'name' );
 					
 					rowTag.append( "<td>" + orgunitGroupSet.name + "</td>" );
 					
