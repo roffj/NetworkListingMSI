@@ -329,6 +329,10 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 					// Depending on the mode, add/update it.
 					// me.mode == "Add" / _mode_Edit
 
+					// Disable save button to prevent double saving
+					var button_SaveTag = me.dialogFormTag.parent( 'div' ).find( '.ui-dialog-buttonpane' ).find( 'button:contains("Save")' ).button();
+					button_SaveTag.hide();
+					
 					var dialogFormTag = $( this );
 					dialogFormTag.block( "Please wait.." );
 
@@ -347,6 +351,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 					{
 						dialogFormTag.unblock();
 						alert( checkValid.message );
+						button_SaveTag.show();
 					}					
 					else
 					{	
@@ -421,12 +426,12 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 								else
 								{
 									alert( "Invalid save mode: " + me.mode );
+									button_SaveTag.show();
 								}
 							}
 							else
 							{
-								
-								
+								button_SaveTag.show();								
 							}
 						});
 					}
