@@ -76,6 +76,8 @@
 	// - ViewServiceManager - 
 	// - ViewColumnsTableManager - 
 
+	// - OrgUnitSearchManager	- Search Network/Child orgUnits
+
 
 	// === Popup Form Classes ===
 	// - SettingDataPopupForm	<-- In separate JS file.
@@ -139,6 +141,8 @@
 	// --------------
 	var _middleSpeed = 400;
 	var _fastSpeed = 400;
+
+	var _appSetting = { "msgAutoHide": true };
 	// ================================
 
 
@@ -404,7 +408,14 @@
 			RESTUtil.retrieveManager.retrieveData( queryURL
 			, function( json_Data ) 
 			{
-				var ouGroupSets = Util.sortByKey( json_Data.organisationUnitGroupSets, "displayName" );
+				var ouGroupSets = Util.sortByKey( json_Data.organisationUnitGroupSets, "name" );
+				
+				// Go through each groupSet and order the orgUnitGroups by name or displayName
+				$.each( ouGroupSets, function( i_ougs, item_ougs )
+				{
+					item_ougs.organisationUnitGroups = Util.sortByKey( item_ougs.organisationUnitGroups, "name" );
+				});
+
 				runFunc( ouGroupSets );
 			}
 			, function()
@@ -531,21 +542,35 @@
 			return Util.checkExistInList( me.userGroups, userGroupId );
 		};
 
-		me.existsInUserGroupsWithList = function( permissions )
+		me.existsInUserGroupsWithList = function( permissions, permType )
 		{
 			// permissions - [], { 'id': selectedVal, 'type': 'Edit' }
-			var editPermit = false;
+			var permit = false;
 
 			$.each( permissions, function( i_pm, item_pm )
 			{
-				if ( item_pm.type == 'Edit' && Util.checkExistInList( me.userGroups, item_pm.id ) )
+				var permTypeOK = false;
+
+				if ( permType == 'Edit' )
 				{
-					editPermit = true;
-					return false;
+					if ( item_pm.type == 'Edit' ) permTypeOK = true;
+				}
+				else if ( permType == 'View' )
+				{
+					if ( item_pm.type == 'View' || item_pm.type == 'Edit' ) permTypeOK = true;
+				}
+
+				if ( permTypeOK )
+				{
+					if ( Util.checkExistInList( me.userGroups, item_pm.id ) )
+					{
+						permit = true;
+						return false;
+					}
 				}
 			});
 
-			return editPermit;
+			return permit;
 		};
 
 
@@ -933,9 +958,9 @@
 		// --------------------------------
 
 		// ----- Network View Related -----		
-		me.getViewSecurityPermission = function( returnFunc ) 
+		me.getViewSecurityPermission = function( permType, viewId, returnFunc ) 
 		{ 
-			me.viewManager.getViewSecurityPermission( returnFunc ); 
+			me.viewManager.getViewSecurityPermission( permType, viewId, returnFunc ); 
 		};
 		
 		// --------------------------------
@@ -1399,7 +1424,13 @@
 				{
 					$.each( json_Data, function( i_view, item_view )
 					{
-						me.networkViewListTag.append( '<option value="' + item_view.id + '">' + item_view.name + '</option>' );
+						me.getViewSecurityPermission( 'View', item_view.id, function( hasPermission )
+						{
+							if ( hasPermission )
+							{
+								me.networkViewListTag.append( '<option value="' + item_view.id + '">' + item_view.name + '</option>' );
+							}
+						});
 					});
 				}				
 			});
@@ -1461,10 +1492,10 @@
 		};
 
 
-		me.getViewSecurityPermission = function( returnFunc )
+		me.getViewSecurityPermission = function( permType, viewId, returnFunc )
 		{
 			var networkName = me.oProviderNetwork.getSelectedNetworkName();
-			var viewId = me.getSelectedViewVal();
+			//var viewId = me.getSelectedViewVal();
 
 			if ( networkName == "" || viewId == "" )
 			{
@@ -1472,7 +1503,6 @@
 			}
 			else
 			{
-
 				// Get userGroupId - if exists..
 				me.getNetworkViewObjData( networkName, viewId, function( viewData )
 				{
@@ -1491,8 +1521,22 @@
 					{
 						if ( viewData.security !== undefined )
 						{
-							// Note - if permission is empty list, also allow it.
-							hasPermission = ( Util.checkValue( viewData.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( viewData.security.permissions ) : false ;
+
+							if ( permType == 'Edit' )
+							{
+								hasPermission = ( Util.checkValue( viewData.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( viewData.security.permissions, permType ) : false ;
+							}
+							else if ( permType == 'View' )
+							{
+								if ( viewData.security.anybodyView )
+								{
+									hasPermission = true;
+								}
+								else
+								{
+									hasPermission = ( Util.checkValue( viewData.security.permissions ) ) ? me.oProviderNetwork.userSecurityManager.existsInUserGroupsWithList( viewData.security.permissions, permType ) : false ;
+								}
+							}
 						}
 						else
 						{
@@ -1533,7 +1577,7 @@
 
 
 					// Get User View Permission first
-					me.getViewSecurityPermission( function( hasPermission )
+					me.getViewSecurityPermission( 'Edit', selectedVal, function( hasPermission )
 					{
 						me.currentViewPermission = hasPermission;
 
@@ -2569,21 +2613,7 @@
 			
 
 			// Sort Number Setup
-			var sortNumberTag = newRowTag.find( '.sortNumber' );
-			
-			var rowNumber = tableTag.find( 'tr.trDataNew[rowid]' ).length;
-
-			if ( rowNumber > 1 )
-			{
-				for (var i = 1; i < rowNumber ; i++ )
-				{
-					sortNumberTag.append( '<option value="' + i + '">' + i + '</option>' );
-				}
-			}
-
-			// Add new number option at the end..
-			tableTag.find( '.sortNumber' ).append( '<option value="' + rowNumber + '">' + rowNumber + '</option>' );
-			sortNumberTag.val( '' );
+			me.reset_sortOrderLists( tableTag );
 
 
 			// Sort Direction Setup
@@ -2593,7 +2623,7 @@
 
 			me.setup_RowOnChangeEvent( newRowTag, newRowTag.find( '.typeValue' ), typeList );
 
-			me.setup_RemoveRowEvent( newRowTag );
+			me.setup_RemoveRowEvent( tableTag, newRowTag );
 
 			me.setUp_RowDragSort( tableTag, newRowTag );
 			
@@ -2602,6 +2632,47 @@
 			return newRowTag;
 		};
 
+
+		me.reset_sortOrderLists = function( tableTag )
+		{
+			// Step 1. Sort tabs by the order..
+			var tagList = [];
+			
+			var sortOrderTags = tableTag.find( '.sortNumber' );
+
+			sortOrderTags.each( function( i ) {
+				var tag = $( this );
+				tagList.push( { 'val': Number( tag.val() ), 'tag': tag } );
+			});
+
+
+			var sortedListTags = Util.sortByKey( tagList, 'val' );
+			var listJson = [];
+			
+			// Step 2. Set the trimmed value + create 'listJson' for new listing
+			var iSortNum = 1;
+			$.each( sortedListTags, function( i_tag, item_tag ) {
+				if ( item_tag.val > 0 ) {
+					item_tag.tag.val( iSortNum );
+					iSortNum++;
+				}
+
+				var countNumber = i_tag + 1;
+				listJson.push( { 'id': countNumber, 'name': countNumber } );
+			});
+
+
+			// Step 3. Switch back 0 to empty value - was set on top
+			sortOrderTags.each( function( i ) {
+				var tag = $( this );
+				if ( tag.val() == 0 ) tag.val( '' );
+			});
+
+
+			// Step 4. Re-list the dropdown selections with value copy
+			Util.reset_tagsListData( sortOrderTags, listJson );
+
+		}
 
 
 		// -----------------------------
@@ -2757,13 +2828,15 @@
 		});
 
 
-		me.setup_RemoveRowEvent = function( trRow )
+		me.setup_RemoveRowEvent = function( tableTag, trRow )
 		{
 			trRow.find( 'input.settingRemove' ).click( function()
 			{
 				trRow.hide( _middleSpeed, function()
 				{
 					trRow.remove();
+
+					me.reset_sortOrderLists( tableTag );
 
 					// Save the column setting Table data
 					me.saveViewColumnsInfo( me.viewColumnsTableTag, me.viewPivotTag );
@@ -5006,6 +5079,7 @@
 									orgUnitDivTag.append( divNetworkChildDataTag );
 									divTdDataTag.append( orgUnitDivTag );
 									var value = item_ou[ typeValue ];
+									value = AppUtil.formatValByType( typeValue, value );
 									divTdDataTag.attr( "dataValue", value );
 									
 									if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -5089,7 +5163,9 @@
 						{
 							var pivotOuData = me.getPivotOrgUnitRetrieved_ById( ouid );
 							var value = pivotOuData[ typeValue ];
+							value = AppUtil.formatValByType( typeValue, value );
 							divTdDataTag.attr( "dataValue", value );
+
 											
 							if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
 							{
@@ -5126,6 +5202,7 @@
 							{
 								var pivotOuData = me.getPivotOrgUnitRetrieved_ById( ouid );
 								var value = pivotOuData[ typeValue ];
+								value = AppUtil.formatValByType( typeValue, value );
 								divTdDataTag.attr( "dataValue", valueFound );
 								
 								if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -5163,6 +5240,7 @@
 						{
 							var pivotOU = me.getPivotOrgUnitRetrieved_ById( ouid );
 							var value = pivotOU.parent[ typeValue ];
+							value = AppUtil.formatValByType( typeValue, value );
 							divTdDataTag.attr( "dataValue", value );
 								
 							if ( typeValue == "id" || typeValue == "name" || typeValue == "displayName" )
@@ -6831,11 +6909,15 @@
 
 				me.viewManager.saveNetworkViewObjData( networkName, viewData, function( success )
 				{
-					if ( returnFunc !== undefined ) returnFunc( success );
+					if ( returnFunc !== undefined ) 
+					{
+						if ( success ) MsgManager.msgAreaShow( "Added the user group on security" );
+
+						returnFunc( success );
+					}
 				});
 			});
 		};
-
 
 		me.removeViewSecurityPermissions = function( userGroupId, returnFunc )
 		{
@@ -6849,10 +6931,38 @@
 
 				me.viewManager.saveNetworkViewObjData( networkName, viewData, function( success )
 				{
-					if ( returnFunc !== undefined ) returnFunc( success );
+					if ( returnFunc !== undefined ) 
+					{
+						if ( success ) MsgManager.msgAreaShow( "Removed the user group on security." );
+
+						returnFunc( success );
+					}
 				});
 			});
 		};
+
+		me.setViewSecurity_anybodyView = function( enabled, returnFunc )
+		{
+			var networkName = me.oProviderNetwork.getSelectedNetworkName();
+			var viewId = me.viewManager.getSelectedViewVal();
+
+			// Save it..
+			me.viewManager.getNetworkViewObjData ( networkName, viewId, function( viewData )
+			{
+				viewData.security.anybodyView = enabled;
+
+				me.viewManager.saveNetworkViewObjData( networkName, viewData, function( success )
+				{
+					if ( returnFunc !== undefined ) 
+					{
+						if ( success ) MsgManager.msgAreaShow( "Anybody View set to " + enabled );
+
+						returnFunc( success );
+					}
+				});
+			});
+		};
+
 
 		// -------------------------------
 	}
@@ -7579,7 +7689,7 @@
 
 					var securityData = { 'sharingName': me.viewManager.getSelectedViewName(), 'ownerId': viewData.owner, 'targetSecurityData': viewData.security };
 
-					me.oProviderNetwork.securitySettingPopupForm.openForm( securityData, me.viewManager.viewServiceManager.addViewSecurityPermissions, me.viewManager.viewServiceManager.removeViewSecurityPermissions );
+					me.oProviderNetwork.securitySettingPopupForm.openForm( securityData, me.viewManager.viewServiceManager.addViewSecurityPermissions, me.viewManager.viewServiceManager.removeViewSecurityPermissions, me.viewManager.viewServiceManager.setViewSecurity_anybodyView );
 				});
 
 			});
@@ -7809,6 +7919,7 @@
 
 		me.addSecurityFunc;
 		me.removeSecurityFunc;
+		me.anybodyViewSecurityFunc;
 
 		me.dialogFormTag = $( "#securitySettingDialogForm" );
 
@@ -7822,19 +7933,25 @@
 		me.sharingAccessTableTag = $( '#sharingAccessTable' );
 
 		me.securityUserGroupsTag = $( '#securityUserGroups' );
+		me.securityViewEditChioceTag = $( '#securityViewEditChioce' );
 		me.securityUserGroups_loadingTag = $( '#securityUserGroups_loading' );
 
 		me.addSecurityUserGroupAccessTag = $( '#addSecurityUserGroupAccess' );
 
+		me.anybodyViewDisableTag = $( '#anybodyViewDisable' );
+		me.anybodyViewEnableTag = $( '#anybodyViewEnable' );
+
 		// ---------------------------------------
 
 
-		me.openForm = function( securityData, addSecurityFunc, removeSecurityFunc )
+		me.openForm = function( securityData, addSecurityFunc, removeSecurityFunc, anybodyViewSecurityFunc )
 		{
 			me.targetSecurityData = securityData.targetSecurityData;
 
 			me.addSecurityFunc = addSecurityFunc;
 			me.removeSecurityFunc = removeSecurityFunc;
+			me.anybodyViewSecurityFunc = anybodyViewSecurityFunc;
+
 
 			me.resetControls();
 	
@@ -7859,7 +7976,9 @@
 			me.userGroupLoad( me.securityUserGroupsTag, me.securityUserGroups_loadingTag, function() {} );
 			
 			me.clearDataRows( me.sharingAccessTableTag );
-			
+
+			me.populateAnybodyViewPermission( me.targetSecurityData.anybodyView, me.sharingAccessTableTag );
+
 			me.populateExistingUserGroups( me.targetSecurityData.permissions, me.sharingAccessTableTag );
 		};
 
@@ -7883,28 +8002,54 @@
 			tableTag.find( 'tr.addedTrData' ).remove();
 		};
 
-		
+		me.populateAnybodyViewPermission = function( anybodyView, sharingAccessTableTag )
+		{
+			// if data exists
+			if ( anybodyView !== undefined && !anybodyView )
+			{
+				// set the row to be disabled and set up the enable button..
+				me.anybodyViewDisableTag.hide();
+				me.anybodyViewEnableTag.show();
+
+				sharingAccessTableTag.find( 'tr.trAnybody' ).addClass( 'crossOutDisabled' );
+			}
+			else
+			{
+				me.anybodyViewEnableTag.hide();
+				me.anybodyViewDisableTag.show();
+
+				sharingAccessTableTag.find( 'tr.trAnybody' ).removeClass( 'crossOutDisabled' );
+			}
+		}
+
+
 		me.populateExistingUserGroups = function( permissions, sharingAccessTableTag )
 		{
-			var noPermissionFound = true;
+			//var noPermissionFound = true;
 
 			// populate the table permission list
-			$.each( permissions, function( i_ug, item_ug )
+			$.each( permissions, function( i_perm, item_perm )
 			{
-				noPermissionFound = false;
+				//noPermissionFound = false;
 
-				me.retrieveUserGroupName( item_ug.id, function( userGroupName )
+				me.retrieveUserGroupName( item_perm.id, function( userGroupName )
 				{
-					var trTag = me.getNewRow( userGroupName, item_ug.id );
+					var trTag = me.getNewRow( userGroupName, item_perm.id, item_perm.type );
 
 					sharingAccessTableTag.find( 'tbody' ).append( trTag );
 				});
 			});
 		};
 
-		me.getNewRow = function( userGroupName, userGroupId )
+		me.getNewRow = function( userGroupName, userGroupId, type )
 		{
-			var trTag = $( '<tr class="addedTrData" ugid="' + userGroupId + '"><td style="width: 300px;">' + userGroupName + '</td><td style="text-align: right;">Can view and edit <input type="image" class="userGroupRemove dimImgWHover" alt="Remove User Group" title="Remove User Group" src="img/cross.png" style="border: 0px solid;"/></td></tr>' );
+			var typeDesc = '';
+
+			if ( type == 'Edit' ) typeDesc = "Can View and Edit";
+			else if ( type == 'View' ) typeDesc = "Can View";
+
+
+			var trTag = $( '<tr class="addedTrData" ugid="' + userGroupId + '"><td style="width: 300px;">' + userGroupName + '</td><td style="text-align: right;"><span>' + typeDesc + '</span> <input type="image" class="userGroupRemove dimImgWHover inputImg" alt="Remove User Group" title="Remove User Group" src="img/cross.png" style="border: 0px solid;"/></td></tr>' );
 
 
 			// Remove Event
@@ -7988,6 +8133,7 @@
 			me.addSecurityUserGroupAccessTag.click( function()
 			{
 				var selectedVal = me.securityUserGroupsTag.val();
+				var viewEditChocie = me.securityViewEditChioceTag.val();
 
 				if ( selectedVal != "" )
 				{
@@ -8002,14 +8148,14 @@
 					}
 					else
 					{
-						var newPermission = { 'id': selectedVal, 'type': 'Edit' };
+						var newPermission = { 'id': selectedVal, 'type': viewEditChocie };
 
 						//me.oProviderNetwork.viewServiceManager.addViewSecurityPermissions( 
 						if ( me.addSecurityFunc !== undefined )
 						{
 							me.addSecurityFunc( newPermission, function()
 							{						
-								var trTag = me.getNewRow( userGroupName, selectedVal );
+								var trTag = me.getNewRow( userGroupName, selectedVal, viewEditChocie );
 
 								me.sharingAccessTableTag.find( 'tbody' ).append( trTag );
 							});
@@ -8017,7 +8163,32 @@
 					}
 				}
 			});
+
+
+			me.anybodyViewDisableTag.click( function()
+			{
+				if ( me.anybodyViewSecurityFunc !== undefined )
+				{
+					me.anybodyViewSecurityFunc( false, function()
+					{
+						me.populateAnybodyViewPermission( false, me.sharingAccessTableTag );
+					});
+				}
+			});
+
+			me.anybodyViewEnableTag.click( function()
+			{
+				if ( me.anybodyViewSecurityFunc !== undefined )
+				{
+					me.anybodyViewSecurityFunc( true, function()
+					{
+						me.populateAnybodyViewPermission( true, me.sharingAccessTableTag );
+					});
+				}
+			});
+
 		};
+
 
 		// Initial Setup Call
 		me.initialSetup = function()
@@ -8346,6 +8517,18 @@
 
 		MsgManager.spanMsgAreaTextTag.text( msg );
 		MsgManager.divMsgAreaTag.show( 'medium' );
+
+		console.log( ' ==[MsgArea]: ' + msg );
+
+
+		if ( _appSetting.msgAutoHide ) {
+
+			// Call to hide once after some time...
+			Util.delayOnceTimeAction( 5000, 'msgArea', function() {
+
+				MsgManager.divMsgAreaTag.hide( 'fast' );
+			});
+		}
 	};
 
 
@@ -8523,6 +8706,12 @@
 		}
 
 		return networkTypeName;
+	}
+
+
+	AppUtil.formatValByType = function( typeValue, value )
+	{
+		return ( typeValue == "openingDate" || typeValue == "closedDate" ) ? value.substring( 0, 10 ) : value;
 	}
 
 
@@ -8748,7 +8937,7 @@
 						</div>
 					</td>
 					<td>						
-						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.121</span></a>
+						<a href="https://docs.google.com/document/d/12S_hAUSepS7fpHw7y92pm-wsa4MkS2LF6pwNraPrgUY" target="_blank" style="color: White;">v <span id="spanCurrentVersion">0.124</span></a>
 						| <button type="button" id="closeButton"><span nameId='closeButton'>Close</span></button>
 					</td>
 				</tr>
@@ -8779,7 +8968,7 @@
 					</td>
 					<td>
 
-					  <div id="divViewSection" style="margin-left: 5px; padding-right:4px; padding-left:4px;">
+					  <div id="divViewSection" style="margin-left: 5px; padding-right:4px; padding-left:4px; border-radius: 4px;">
 
 					    <table>
 						<tr>
@@ -8834,16 +9023,16 @@
 					</td>
 					<td>
 
-						<div id="divOuSearchSection" style="background-color: #F7FBFF; border: 1px solid LightGray; margin-left: 10px; padding-right:4px; padding-left:4px;"> 
+						<div id="divOuSearchSection" style="background-color: #F7FBFF; border: 1px solid LightGray; margin-left: 10px; padding-right:4px; padding-left:4px; border-radius: 4px;"> 
 
 							<table>
 							<tr>
 							  <td>
-								<span class="divSectionTitle">OU Select: </span>
+								<span class="divSectionTitle">OrgUnit Search:</span>
 							  </td>
 							  <td style="white-space: nowrap;">
-								<div id="divOuSearch">
-									<input type="search" id="orgUnitName" size="30" style="background-color: #FFF; padding-left: 3px;" /><input type="button" id="orgUnitTreeBtn" value="T" title="Open OrgUnitTree" style="cursor:pointer; margin:0px; padding:1px 2px; color:#777777; background-color: #DAE4FF; border-left: none; display:none;">
+								<div id="divOuSearch" style="margin-left: 4px;">
+									<input type="search" id="orgUnitName" size="30" placeholder="Type Network/Child Name" style="background-color: #FFF; padding-left: 3px;" /><input type="button" id="orgUnitTreeBtn" value="T" title="Open OrgUnitTree" style="cursor:pointer; margin:0px; padding:1px 2px; color:#777777; background-color: #DAE4FF; border-left: none; display:none;">
 								</div>
 							  </td>
 							  <td>
@@ -8876,12 +9065,12 @@
 
 			<div id="mainContent" style="display:none; clear: both; ">
 
-				<div id="divDataListing" style="display:none; margin-top: 5px; margin-right:10px;">
+				<div id="divDataListing" style="display:none; margin-top: 1px; margin-right:10px;">
 
 					<table style="min-width:460px;" >
 					<tr>
 						<td>
-							<hr noshade size="1" align="left" style="border-color: #AAAAAA;">
+							<hr noshade size="1" align="left" style="border-color: #DDD;">
 						</td>
 					</tr>
 					<tr>
@@ -8925,7 +9114,7 @@
 					</tr>
 					<tr>
 						<td>
-							<table id="datatable" class="tbDataListingTable dataListTable alternateColor tablesorter" style="min-width:500px; margin-top: 5px; display:none;" >
+							<table id="datatable" class="tbDataListingTable dataListTable alternateColor tablesorter" style="min-width:500px; margin-top: 0px; display:none;" >
 								<thead></thead>
 								<tbody></tbody>
 								<tfoot></tfoot>
@@ -9357,7 +9546,7 @@
 					
 					</td>
 					<td align="right">
-						<div id="divSettingDataChanged" style="display: none; color: Red;">[Changed]</div>
+						<div id="divSettingDataChanged" style="display: none; font-weight: bold; color: White; background-color: Red; display: -webkit-inline-box; padding: 3px 10px;">[Changed]</div>
 					</td>
 				</tr>
 				</table>
@@ -9562,7 +9751,7 @@
 
 							<div class="networkSettingTab" code="network_Attr" id="Sec2">
 
-								<table class="tblNetworkSetting listTable_D1"  style="font-size:small; margin-left:0px; margin-top:3px;" width="100%">
+								<table class="tblNetworkSetting listTable_D1"  style="margin-left:0px; margin-top:3px;" width="100%">
 									<thead>
 										<tr class="trHeader" style="font-size: 1px;">
 											<th width='20%' style="font-size: 1px;">&nbsp;</th>
@@ -9669,7 +9858,7 @@
 								</div>
 								<div class="divNetworkChildAttributes" style="display:none;">
 
-									<table class="tblNetworkSetting listTable_D1"  style="font-size:small; margin-left:0px; margin-top:3px;" width="100%">
+									<table class="tblNetworkSetting listTable_D1"  style="margin-left:0px; margin-top:3px;" width="100%">
 										<thead>
 											<tr class="trHeader" style="font-size: 1px;">
 												<th width='20%' style="font-size: 1px;">&nbsp;</th>
@@ -10060,7 +10249,7 @@
 	</div>
 
 	
-	<div id="filterValuePopup" class="ui-widget" formWidth="600" formHeight="150" style="margin:0;padding:0;display:none;">
+	<div id="filterValuePopup" class="ui-widget" formWidth="600" formHeight="170" style="margin:0;padding:0;display:none;">
 	
 		<table id="viewColumnFilterTable" class="listTable_OuEdit" style="margin-top:10px;">
 			<tr>
@@ -10113,7 +10302,7 @@
 
 			<div id="orgUnitAddTab" class="tabStyle_Simple" style="margin: 5px; width: 640px;" ouid="" >
 			  
-			  <input type="hidden" id="parentOrgUnit" mandatory="true" >				
+			  <input type="hidden" id="parentOrgUnit">				
 
 			  <ul id="orgUnitFormTabUl">
 				<li><a href="#detailTab">Details</a></li>
@@ -10128,8 +10317,19 @@
 					<tr id="searchParentOuTR">
 						<td>Parent <span class="required">*</span></td>
 						<td>
-							<input type="text" id="parentOrgUnitSearch" class="ouForm" mandatory="true" style="width:400px; background-color:#fff;">
-							<img src='img/ui-anim_basic.gif'  id='parentOuLoading' style='display:none'/>
+							<table class="tbNone">
+							<tr>
+							<td>
+								<input type="text" id="parentOrgUnitSearch" class="ouForm" mandatory="true" hasMsgDiv="divParentOrgUnitMsg" size="57" placeholder="Type Parent OrgUnit Name Here.">
+							</td>
+							<td>
+								<div id='parentOuLoading' style='display:none'>
+									<img src='img/ui-anim_basic.gif'/>
+								</div>
+							</td>
+							</tr>
+							</table>
+							<div id="divParentOrgUnitMsg" style="display: none; color: Red;">Please select a valid parent Org Unit</div>
 						</td>
 					</tr>
 
@@ -10272,6 +10472,13 @@
 							<select id="securityUserGroups"></select>
 						</td>
 						<td>
+							<select id="securityViewEditChioce">
+								<option value="View">View</option>
+								<option value="Edit">Edit</option>
+							</select>
+						</td>
+
+						<td>
 							<div id='securityUserGroups_loading' style='display:none'>
 								<img src='img/ui-anim_basic.gif'/> loading..
 							</div>
@@ -10288,9 +10495,10 @@
 					<tr>
 						<td colspan="2"><span class="tipText">Created by: </span><span class="tipText" title="" id="createdUser"></span></td>
 					</tr>
-					<tr>
+					<tr class="trAnybody">
 						<td style="width: 300px;">Anybody</td>
-						<td style="text-align: right;">Can view</td>
+						<td style="text-align: right;"><span class="spanAnybodyViewDesc">Can View</span> <input ID="anybodyViewDisable" type="image" class="dimImgWHover inputImg" alt="Disable Anybody View" title="Disable Anybody View" src="img/cross.png" style="border: 0px solid;"/><input id="anybodyViewEnable" type="image" class="dimImgWHover inputImg" alt="Enable Anybody View" title="Enable Anybody View" src="img/add_small.png" style="border: 0px solid; display: none;"/>						
+						</td>
 					</tr>
 				</tbody>
 			</table>

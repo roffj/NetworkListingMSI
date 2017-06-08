@@ -1,6 +1,6 @@
 .ui-autocomplete-loading {
     background: white url("ui-anim_basic_16x16.gif") right center no-repeat !IMPORTANT;
-  }
+ }
   
   
 body {
@@ -19,6 +19,9 @@ input, textarea, select {
 	background: none;
 }
 
+input {
+	padding: 2px;
+}
 
 button 
 {
@@ -62,6 +65,11 @@ input.ouForm
 input.ouForm:disabled
 {
 	background-color: #fff; !important; /* #f2f2f2; */
+}
+
+input[type="image"]
+{
+	vertical-align: bottom;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -356,7 +364,7 @@ table {
 
 
 /*----------------------------------------------------------------------------*/
-/* Security Setting Related                                                          */
+/* Security Setting Popup Form Related                                                          */
 /*----------------------------------------------------------------------------*/
 
 .sharingSettings {
@@ -373,12 +381,17 @@ table {
 #sharingAccessTable {
   display: table;
   border-collapse: separate;
-  border-spacing: 2px;
+  /*border-spacing: 2px;*/
   border-color: gray;
 }
 
 #sharingAccessTable td {
   padding: 3px 0px;
+}
+
+.trAnybody td {
+	border-bottom: 1px solid #ccc;
+	margin-bottom: 5px;
 }
 
 .tipText {
@@ -388,6 +401,12 @@ table {
 .inputStyle {
   line-height: 140%;
   padding: 1px;
+}
+
+.crossOutDisabled
+{
+	text-decoration: line-through;
+	color: #888;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -721,6 +740,8 @@ div.showTopLine
 }
 
 
+
+
 .dataListTable
 {
 	font-size: 11px;
@@ -729,6 +750,9 @@ div.showTopLine
 	/*margin: 10px;*/
 	border-collapse: collapse;
 	text-align: left;
+
+ 	/*box-shadow: 0px 0px 15px rgba(0,0,0,0.10),
+     0px 10px 15px rgba(0,0,0,0.05);*/
 }
 
 .dataListTable.alternateColor tbody tr:nth-child(odd) 
@@ -844,6 +868,10 @@ div.content2 {
 	font-weight: bold;
 }
 
+.tblNetworkSetting
+{
+	font-size: 12px !IMPORTANT;
+}
 
 /* tbPadding2 Table */
 .tbPadding2
@@ -1456,13 +1484,14 @@ div#selectionTree a.locked
 .switchSection_Off
 {
 	border: 1px solid #AAA !IMPORTANT;
-	background-color: #DDD !IMPORTANT;
+	background-color: #EEE !IMPORTANT;
 	cursor: pointer;
 }
 
 .switchSection_Off:hover
 {
-	background-color: #EEE !IMPORTANT;
+	font-weight: bold;
+	background-color: #F7FBFF !IMPORTANT;
 }
 
 .divSectionTitle
@@ -1481,9 +1510,9 @@ div#selectionTree a.locked
 
 .divSectionTitle_Off:hover
 {
+	font-weight: bold;
 	color: #444;
 }
-
 
 /*----------------------------------------------------------------------------*/
 /* Other Page Css                                          */
