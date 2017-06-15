@@ -98,6 +98,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 	me.selectedOUGroupAssignedOUTag = $( '#selectedOUGroupAssignedOU' );
 
 	me.runBtnTag = $("#runBtn");
+	me.saveBtnTag;
 	
 	me.customer_phoneTag = $( '#customer_phone' );
 
@@ -162,10 +163,10 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			me.mode = mode;
 
 			// Reset the form..
-			var button_SaveTag = me.resetFormStatus();
+			me.saveBtnTag = me.resetFormStatus();
 
 			// Setup OrgUnit		
-			me.orgUnitFormSetup( me.orgUnitInfo, button_SaveTag );
+			me.orgUnitFormSetup( me.orgUnitInfo, me.saveBtnTag );
 			
 
 			// Open the dialog form
@@ -331,8 +332,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 					// me.mode == "Add" / _mode_Edit
 
 					// Disable save button to prevent double saving
-					var button_SaveTag = me.dialogFormTag.parent( 'div' ).find( '.ui-dialog-buttonpane' ).find( 'button:contains("Save")' ).button();
-					button_SaveTag.hide();
+					me.saveBtnTag.hide();
 					
 					var dialogFormTag = $( this );
 					dialogFormTag.block( "Please wait.." );
@@ -351,8 +351,8 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 					if ( !checkValid.valid )
 					{
 						dialogFormTag.unblock();
+						me.saveBtnTag.show();
 						alert( checkValid.message );
-						button_SaveTag.show();
 					}					
 					else
 					{	
@@ -390,6 +390,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 									if( !result )
 									{
 										dialogFormTag.unblock();
+										me.saveBtnTag.show();
 										elementTag.focus();
 										valid = false;
 									}
@@ -406,6 +407,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 									colTag.append( "<span class='error'>The " + invalidFieldName + " is already in use. Please choose a different " + invalidFieldName + ".</span>" );
 									
 									dialogFormTag.unblock();
+									me.saveBtnTag.show();
 									valid = false;
 								}
 								
@@ -427,12 +429,12 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 								else
 								{
 									alert( "Invalid save mode: " + me.mode );
-									button_SaveTag.show();
+									me.saveBtnTag.show();
 								}
 							}
 							else
 							{
-								button_SaveTag.show();								
+								me.saveBtnTag.show();								
 							}
 						});
 					}
@@ -498,7 +500,12 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 		var valid = ( message.length == 0 );
 
-		if ( !valid ) dialogFormTag.unblock();
+		if ( !valid ) {
+
+			me.saveBtnTag.show();
+			dialogFormTag.unblock();
+
+		}
 
 
 		return { "valid" : valid , "message" : message };
@@ -2039,6 +2046,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 				if( data.response.importConflicts !== undefined )
 				{
+					me.saveBtnTag.show();
 					dialogFormTag.unblock();
 					var message = data.response.importConflicts[0].value;
 					if( message.indexOf("message=") < 0 ){
@@ -2146,7 +2154,10 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			}
 			, function() 
 			{ 
-				if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
+				if ( dialogFormTag !== undefined ) {
+					me.saveBtnTag.show();
+					dialogFormTag.unblock(); 
+				} 
 			} 
 			);
 
@@ -2169,6 +2180,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			}
 			else
 			{
+				me.saveBtnTag.show();
 				me.dialogFormTag.unblock();
 			}
 		}		
@@ -2235,6 +2247,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 					if( result.response.importConflicts !== undefined )
 					{
+						me.saveBtnTag.show();
 						dialogFormTag.unblock();
 						var message = data.response.importConflicts[0].value;
 						if( message.indexOf("message=") < 0 ){
@@ -2339,7 +2352,10 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				}
 				, function() 
 				{ 
-					if ( dialogFormTag !== undefined ) dialogFormTag.unblock(); 
+					if ( dialogFormTag !== undefined ) {
+						me.saveBtnTag.show();
+						dialogFormTag.unblock();
+					}  
 				} 
 				)
 			});
