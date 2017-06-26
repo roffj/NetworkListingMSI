@@ -1157,42 +1157,13 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 
 		var attributeValueList = ( me.orgUnitInfo.isType_NetworkChild ) ? me.oProviderNetwork.getNetworkChildAttributeValueList_FromSetting() : me.oProviderNetwork.getNetworkAttributeValueList_FromSetting();
 
-		if( me.mode == "Add" ) 
-		{			
-			// Check and add required fields which are missing in Network configuation
-			var basicAttributeList = me.getBasicAttributeList();
-		
-			for( var i = 0; i < basicAttributeList.length; i++ )
-			{
-				var fieldAttr = basicAttributeList[i];
-			
-				if ( ( fieldAttr.mandatory || fieldAttr.hidden ) && !me.checkExistRequiredField( attributeValueList, fieldAttr.value ) ) 
-				{
-					var maxlength = ( fieldAttr.length !== undefined ) ? "maxlength=\"" + fieldAttr.length + "\"" : "";
-					var hidden = ( fieldAttr.hidden ) ? "style='display:none;'" : "";
-					var mandatory = ( fieldAttr.mandatory ) ? "mandatory=\"" + fieldAttr.mandatory + "\"" : "";
-					var mandatorySpan =  ( fieldAttr.mandatory ) ? "<span class='required'>*</span>" : "";
-
-					var rowTag = $( "<tr rowType='added' " + hidden + "></tr>" );
-
-					rowTag.append( "<td>" + fieldAttr.name + " " + mandatorySpan + "</td>" );
-					
-					rowTag.append( '<td><input type="text" class="ouAdd_' + fieldAttr.value + ' ouForm" size="60" ' + maxlength + '  ' + mandatory + ' /></td>' );
-					
-					if( fieldAttr.valueType == "date" )
-					{
-						rowTag.find( 'input' ).datepicker( { dateFormat: "yy-mm-dd" } );
-					}
-					
-					me.ouDetailsTableTag.append( rowTag );
-				}
-			}
-		}
-
 		
 		// Get Network/NetworkChild OU Group		
 		var ouGroupId = ( me.orgUnitInfo.isType_NetworkChild  ) ? me.oProviderNetwork.networkData.networkChild_OUGroupID : me.oProviderNetwork.networkData.network_OUGroupID;
 
+		// Check and add required fields which are missing in Network configuation 
+		// - skip this for now
+		// var basicAttributeList = me.getBasicAttributeList();
 		
 		// Generate fields in Network/NetworkChild	
 		me.trOuCoordinateSectionTag.hide()
@@ -1202,6 +1173,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			
 			var attributeValue = attributeValueList[i].value;
 			var readOnly = ( attributeValueList[i].readOnly === undefined ) ? false : attributeValueList[i].readOnly;
+			var required = ( attributeValueList[i].required === undefined ) ? false : attributeValueList[i].required;
 			
 			// Orgunit Dynamic attributes
 			if( attributeValueList[i].type == 'ou_attr' )
@@ -1236,14 +1208,17 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 					else
 					{
 						var maxlength = "";
+						var hidden = "";
 						var mandatory = "";
 						var mandatorySpan = "";
 						var ouField = me.getRequiredOuField( attributeValue );
 						var nameField = Util.upcaseFirstCharacterWord( attributeValue );
-			
-						if( ouField != "" )
-						{
+						ouField.mandatory = ( ouField.mandatory || required );
+
+                        if( ouField != "" )
+                        {
 							maxlength = ( ouField.length !== undefined ) ? "maxlength=\"" + ouField.length + "\"" : "";
+							hidden = ( ouField.hidden ) ? "style='display:none;'" : "";
 							mandatory= ( ouField.mandatory ) ? "mandatory=\"" + ouField.mandatory + "\"" : "";					
 							mandatorySpan = ( ouField.mandatory ) ? "<span class='required'>*</span>" : "";
 							nameField = ouField.name;
@@ -1273,6 +1248,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				// Dynamic Org Unit properties
 				else if( dynamicField !== undefined )
 				{
+					dynamicField.mandatory = ( dynamicField.mandatory || required );
 					var attributeValue = attributeValue.replace( "dynamicAttr_", "" );
 					var maxlength = ( dynamicField.length !== undefined ) ? "maxlength=\"" + ouField.length + "\"" : "";
 					var mandatory = ( dynamicField.mandatory ) ? "mandatory=\"" + dynamicField.mandatory + "\"" : "";
@@ -1305,10 +1281,13 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				{
 					var groups = ( orgunitGroupSet.organisationUnitGroups === undefined ) ? [] : orgunitGroupSet.organisationUnitGroups;
 					// Util.sortByKey( orgunitGroupSet.organisationUnitGroups, 'name' );
+
+					var mandatory = ( required ) ? "mandatory=\"" + required + "\"" : "";
+					var mandatorySpan =  ( required ) ? "<span class='required'>*</span>" : "";
 					
-					rowTag.append( "<td>" + orgunitGroupSet.name + "</td>" );
+					rowTag.append( "<td>" + orgunitGroupSet.name + mandatorySpan + "</td>" );
 					
-					rowTag.append("<td><select class='ougs_" + orgunitGroupSet.id + "' style='width:400px;'></select></td>");
+					rowTag.append("<td><select class='ougs_" + orgunitGroupSet.id + "' " + mandatory + " style='width:400px;'></select></td>");
 					
 					var selector = rowTag.find("select");
 
@@ -1327,7 +1306,7 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				}				
 			}
 			
-			if( readOnly && me.mode == _mode_Edit )
+			if( readOnly )
 			{
 				Util.disableTag( rowTag.find( "input,select" ), true );
 			}

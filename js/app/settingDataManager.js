@@ -1923,8 +1923,9 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 
 					var typeVal = trAttrTag.find( "select.attributeType" ).val();
 					var readOnly = trAttrTag.find( "input.attributeReadOnly" ).is( ":checked" );
+					var required = trAttrTag.find( "input.attributeRequired" ).is( ":checked" );
 
-					item.AttrData.attributes.push( { "type": typeVal, "value": attrVal, "readOnly": readOnly } );
+					item.AttrData.attributes.push( { "type": typeVal, "value": attrVal, "readOnly": readOnly, "required": required } );
 				}
 			});
 		}
@@ -2164,6 +2165,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			+ '<td style="border:0px;"><select class="attributeType"><option value="ou_attr">OU Property</option><option value="ougs">OU GroupSet</option></select></td>' 
 			+ '<td style="border:0px;"><select class="attribute" style="width:160px;"></select></td>'
 			+ '<td style="border:0px; padding: 0px; text-align: center;"><input class="attributeReadOnly" type="checkbox" /></td>'
+			+ '<td style="border:0px; padding: 0px; text-align: center;"><input class="attributeRequired" type="checkbox" /></td>'
 			+ '<td style="border:0px; padding: 0px 2px 0px 2px;"><input type="image" class="attributeRemove dimImgWHover" alt="Remove" title="Remove" src="img/cross.png" style="border: 0px solid;" /></td>'
 			+ '</tr>' );
 
@@ -2171,6 +2173,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		trAttributeRowTag.find( 'select.attributeType' ).val( type );
 		var attributeSelectTag = trAttributeRowTag.find( 'select.attribute' );
 		var attributeReadOnlyTag = trAttributeRowTag.find( 'input.attributeReadOnly' );
+		var attributeRequiredTag = trAttributeRowTag.find( 'input.attributeRequired' );
 		var attrVal = ( attrItem !== undefined ) ? attrItem.value : undefined;			
 
 		if( type == 'ou_attr' )
@@ -2184,6 +2187,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		}
 
 		if ( attrItem !== undefined && attrItem.readOnly !== undefined ) attributeReadOnlyTag.prop( 'checked', attrItem.readOnly );
+		if ( attrItem !== undefined && attrItem.required !== undefined ) attributeRequiredTag.prop( 'checked', attrItem.required );
 				
 
 		// For display only, and selected vlaue, set them here.
@@ -2192,6 +2196,7 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 			Util.disableTag( trAttributeRowTag.find( 'select.attributeType' ), true );		
 			Util.disableTag( attributeSelectTag, true );
 			Util.disableTag( attributeReadOnlyTag, true );
+			Util.disableTag( attributeRequiredTag, true );
 			trAttributeRowTag.find( 'input.attributeRemove' ).remove();
 
 			AppUtil.disableRowMoving( trAttributeRowTag );
@@ -2213,6 +2218,12 @@ function SettingDataPopupForm( oProviderNetwork, settingDialogDiv, systemSetting
 		attributeReadOnlyTag.change( function()
 		{
 			console.log( 'attributeReadOnlyTag.change' );
+			me.saveNetworkRowData( $( this ) );
+		});
+
+		attributeRequiredTag.change( function()
+		{
+			console.log( 'attributeRequiredTag.change' );
 			me.saveNetworkRowData( $( this ) );
 		});
 
