@@ -1213,14 +1213,14 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 						var mandatorySpan = "";
 						var ouField = me.getRequiredOuField( attributeValue );
 						var nameField = Util.upcaseFirstCharacterWord( attributeValue );
-						ouField.mandatory = ( ouField.mandatory || required );
+						required = ( ouField.mandatory || required );
 
                         if( ouField != "" )
                         {
 							maxlength = ( ouField.length !== undefined ) ? "maxlength=\"" + ouField.length + "\"" : "";
 							hidden = ( ouField.hidden ) ? "style='display:none;'" : "";
-							mandatory= ( ouField.mandatory ) ? "mandatory=\"" + ouField.mandatory + "\"" : "";					
-							mandatorySpan = ( ouField.mandatory ) ? "<span class='required'>*</span>" : "";
+							mandatory= ( required ) ? "mandatory=\"" + required + "\"" : "";					
+							mandatorySpan = ( required ) ? "<span class='required'>*</span>" : "";
 							nameField = ouField.name;
 						}
 						
@@ -1248,11 +1248,11 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				// Dynamic Org Unit properties
 				else if( dynamicField !== undefined )
 				{
-					dynamicField.mandatory = ( dynamicField.mandatory || required );
+					required = ( dynamicField.mandatory || required );
 					var attributeValue = attributeValue.replace( "dynamicAttr_", "" );
 					var maxlength = ( dynamicField.length !== undefined ) ? "maxlength=\"" + ouField.length + "\"" : "";
-					var mandatory = ( dynamicField.mandatory ) ? "mandatory=\"" + dynamicField.mandatory + "\"" : "";
-					var mandatorySpan =  ( dynamicField.mandatory ) ? "<span class='required'>*</span>" : "";
+					var mandatory = ( required ) ? "mandatory=\"" + required + "\"" : "";
+					var mandatorySpan =  ( required ) ? "<span class='required'>*</span>" : "";
 					
 					rowTag.append("<td>" + dynamicField.displayName + mandatorySpan + "</td>" );
 
