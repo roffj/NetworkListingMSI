@@ -2112,6 +2112,13 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 						}
 						
 						me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
+
+						me.executeNetworkScript( "AfterCreation", orgUnitsJSON, function( orgUnitsJSON ) 
+						{
+							var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
+			
+							me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitData( ouId, me.mode );
+						});
 							
 
 						// Display message
@@ -2151,7 +2158,6 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 			
 		if( me.dataRetrieveCount <= 0 )
 		{
-			me.applyOrgUnitInDataTable( orgUnitsJSON );
 			
 			if( me.progressSuccess )
 			{
@@ -2163,47 +2169,6 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 				me.dialogFormTag.unblock();
 			}
 		}		
-	}
-
-	me.applyOrgUnitInDataTable = function( orgUnitsJSON )
-	{
-		if(  me.mode == "Add" )
-		{
-			me.executeNetworkScript( "AfterCreation", orgUnitsJSON, function( orgUnitsJSON ) 
-			{
-				var ouId = ( me.orgUnitInfo.isType_Network ) ? orgUnitsJSON.id : me.parentOrgUnitTag.val();
-
-				me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitData( ouId, me.mode );
-			});
-		}
-		else if( me.mode == _mode_Edit )
-		{
-			// if 'openingDate' and 'closedDate', remove the time marker..
-			//AppUtil.replaceObjectValue( orgUnitsJSON, me.dateEndingTimeZone );
-
-			me.executeNetworkScript( "AfterUpdate", orgUnitsJSON, function( orgUnitsJSON ) 
-			{
-				var mainOU_Data = orgUnitsJSON;
-			
-				if( me.orgUnitInfo.isType_NetworkChild )
-				{
-					ouId = me.parentOrgUnitTag.val();
-					var ouList = me.dataListingTableManager.pivotOrgUnitRetrieved_InMemory;
-
-					if( Util.findItemFromList( ouList, "id", ouId ) != undefined )
-					{
-						mainOU_Data = Util.findItemFromList( ouList, "id", ouId );
-						
-						Util.RemoveFromArray( mainOU_Data.children, "id", orgUnitsJSON.id );
-						
-						mainOU_Data.children.push( orgUnitsJSON );	
-						orgUnitsJSON.parent = mainOU_Data;
-					}
-				}
-				
-				me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitJsonData( orgUnitsJSON, me.mode, me.orgUnitInfo.networkTypeName );
-			});
-		}	
 	}
 
 	me.editOrgUnitAction = function( tableTag, dialogFormTag, tableSubMsgTag, msg )
@@ -2313,6 +2278,29 @@ function OrgUnitPopupManager( dialogFormTag, mapTag, dataListingTableManager, oP
 						});
 																		
 						me.checkNapplyOrgUnitInDataTable( orgUnitsJSON );
+
+						me.executeNetworkScript( "AfterUpdate", orgUnitsJSON, function( orgUnitsJSON ) 
+							{
+							var mainOU_Data = orgUnitsJSON;
+						
+							if( me.orgUnitInfo.isType_NetworkChild )
+							{
+								ouId = me.parentOrgUnitTag.val();
+								var ouList = me.dataListingTableManager.pivotOrgUnitRetrieved_InMemory;
+			
+								if( Util.findItemFromList( ouList, "id", ouId ) != undefined )
+								{
+									mainOU_Data = Util.findItemFromList( ouList, "id", ouId );
+									
+									Util.RemoveFromArray( mainOU_Data.children, "id", orgUnitsJSON.id );
+									
+									mainOU_Data.children.push( orgUnitsJSON );	
+									orgUnitsJSON.parent = mainOU_Data;
+								}
+							}
+				
+							me.oProviderNetwork.dataListingTableManager.popupPivotOneOrgUnitJsonData( orgUnitsJSON, me.mode, me.orgUnitInfo.networkTypeName );
+						});
 						
 						
 						// Display message
